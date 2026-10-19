@@ -1,0 +1,584 @@
+"use strict";
+/* UzCarbon — foydalanuvchi interfeysi. Hisoblash mantig‘i: calc.js, server API: server.js */
+
+
+/* ============ Konfiguratsiya (uslubiyot ma'lumotnomasi) ============ */
+const { FUELS, SECTORS, REGIONS, DEFAULT_PARAMS, Q, QN, fmt, num, periodKey, periodLabel, sortRecs } = window.UzCalc;
+/* ============ Holat ============ */
+const S = { inst:[], recs:[], params:structuredClone(DEFAULT_PARAMS), db:null, user:null, sample:null, downloads:null,
+  canWrite:true, view:"panel", selInst:"", chat:[], aiRec:{}, busy:false, loaded:{inst:false,recs:false} };
+const VIEWS = [
+  {k:"panel", n:"Monitoring paneli"},
+  {k:"inst", n:"Inshootlar reyestri", c:()=>S.inst.length},
+  {k:"data", n:"Ma’lumot kiritish", c:()=>S.recs.length},
+  {k:"calc", n:"Hisob-kitob va CBAM"},
+  {k:"ai", n:"AI tahlil"},
+  {k:"report", n:"CBAM hisoboti"},
+  {k:"settings", n:"Parametrlar"},
+];
+
+/* ============ Yordamchilar ============ */
+const $ = (s,el=document)=>el.querySelector(s);
+const esc = s => String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+function toast(t){ const el=$("#toast"); el.textContent=t; el.hidden=false; clearTimeout(toast.t); toast.t=setTimeout(()=>el.hidden=true,2600); }
+const instById = id => S.inst.find(i=>i.id===id);
+
+/* ============ Hisoblash yadrosi ============ */
+function calc(r, inst, P=S.params){
+  const sec = inst?.sector || "cement", sc = P.sec[sec] || DEFAULT_PARAMS.sec[sec];
+  const f = r.fuels||{};
+  const fuelLines = FUELS.map(F=>({k:F.k,n:F.n,q:num(f[F.k]), t:num(f[F.k])*F.ncv*F.ef})).filter(x=>x.q>0);
+  const combustion = fuelLines.reduce((a,x)=>a+x.t,0);
+  let process=0, procLines=[];
+  if(sec==="cement"){
+    const cao=num(r.cao), mgo=num(r.mgo);
+    const efc = (cao>0) ? (cao/100*0.785 + mgo/100*1.092) : 0.52;
+    const t=num(r.clinker)*efc; process+=t; procLines.push({n:"Klinker kalsinatsiyasi", t, note:`EF = ${fmt(efc,3)} t CO₂/t`});
+  }
+  if(sec==="steel"){
+    const a=num(r.limestone)*0.44, b=num(r.electrode)*3.663;
+    process+=a+b; procLines.push({n:"Ohaktosh (karbonatlar)",t:a},{n:"Grafit elektrodlar",t:b});
+  }
+  if(sec==="aluminium"){
+    const a=num(r.anode)*3.6, b=num(r.pfc);
+    process+=a+b; procLines.push({n:"Anod iste’moli",t:a},{n:"PFC (t CO₂e)",t:b});
+  }
+  if(sec==="fertilizer"){
+    const a=num(r.n2o)*265; process+=a; procLines.push({n:"N₂O (GWP 265)",t:a});
+  }
+  const direct = combustion + process;
+  const indirectAll = num(r.electricity)*P.gridEf;
+  const indirect = SECTORS[sec].indirect ? indirectAll : 0;
+  const precursors = num(r.precursors);
+  const output = num(r.output);
+  const total = direct + indirect + precursors;
+  const see = output>0 ? total/output : NaN;
+  const seeDirect = output>0 ? direct/output : NaN;
+  // CBAM
+  const M = num(r.exportEU);
+  const cfPct = (r.year<2026) ? null : (P.cf[r.year] ?? 0);
+  let bmUnit = sc.bm;
+  if(sec==="cement"){ const cr = output>0 ? num(r.clinker)/output : 0; bmUnit = sc.bm*Math.min(cr,1); }
+  const embedded = isFinite(see)? see*M : 0;
+  const freeAdj = cfPct==null ? 0 : bmUnit*(cfPct/100)*M;
+  const certs = cfPct==null ? 0 : Math.max(0, embedded - freeAdj);
+  const gross = certs*P.etsPrice;
+  const natEurT = P.natRate/P.eurRate;
+  const deduction = Math.min(gross, natEurT*(P.natCoverage/100)*certs);
+  const net = gross - deduction;
+  const defSee = sc.defSee*(1+P.markup/100);
+  const certsDef = cfPct==null ? 0 : Math.max(0, defSee*M - freeAdj);
+  const netDef = certsDef*P.etsPrice; // standart qiymatda milliy narx tasdiqlanmagan deb olinadi
+  const natTax = direct*(P.natCoverage/100)*P.natRate; // so'm
+  return {sec, fuelLines, procLines, combustion, process, direct, indirect, indirectAll, precursors, total, output, see, seeDirect,
+    M, cfPct, bmUnit, embedded, freeAdj, certs, gross, deduction, net, defSee, certsDef, netDef, saving:netDef-net, natTax,
+    clinkerRatio: sec==="cement"&&output>0? num(r.clinker)/output : null,
+    fuelGJperClinker: sec==="cement"&&num(r.clinker)>0? FUELS.reduce((a,F)=>a+num(f[F.k])*F.ncv,0)*1000/num(r.clinker) : null,
+    kwhPerT: output>0? num(r.electricity)*1000/output : null };
+}
+
+/* ============ Avtomatik tahlil: anomaliyalar va prognoz ============ */
+function analyze(){
+  const out=[];
+  for(const inst of S.inst){
+    const recs = sortRecs(S.recs.filter(r=>r.instId===inst.id));
+    const res = recs.map(r=>({r, c:calc(r,inst)}));
+    res.forEach(({r,c},idx)=>{
+      const where = `${inst.name} · ${periodLabel(r)}`;
+      if(!(c.output>0)) out.push({sev:"hi", inst, r, t:"Mahsulot hajmi kiritilmagan", d:`${where}: SEE ni hisoblab bo‘lmaydi.`});
+      if(c.M > c.output && c.output>0) out.push({sev:"hi", inst, r, t:"Eksport hajmi ishlab chiqarishdan katta", d:`${where}: YeIga eksport ${fmt(c.M)} t, ishlab chiqarish ${fmt(c.output)} t. Zaxiradan sotilgan bo‘lsa, izoh qo‘shing.`});
+      if(c.sec==="cement"){
+        if(c.clinkerRatio!=null && (c.clinkerRatio<0.5||c.clinkerRatio>0.97)) out.push({sev:"mid",inst,r,t:"Klinker koeffitsiyenti odatiy oraliqdan tashqarida",d:`${where}: ${fmt(c.clinkerRatio,2)} (odatda 0,50–0,97).`});
+        if(c.fuelGJperClinker!=null && (c.fuelGJperClinker<2.9||c.fuelGJperClinker>4.8)) out.push({sev:"mid",inst,r,t:"Klinker uchun yoqilg‘i sarfi odatiy emas",d:`${where}: ${fmt(c.fuelGJperClinker,2)} GJ/t klinker (quruq usulda odatda 2,9–4,8). O‘lchov va hisob-fakturalarni tekshiring.`});
+        if(c.kwhPerT!=null && (c.kwhPerT<60||c.kwhPerT>160)) out.push({sev:"lo",inst,r,t:"Elektr sarfi odatiy emas",d:`${where}: ${fmt(c.kwhPerT,0)} kVt·soat/t (odatda 60–160).`});
+      }
+      const sc=S.params.sec[c.sec];
+      if(isFinite(c.see) && sc){
+        if(c.see > sc.defSee*1.3) out.push({sev:"mid",inst,r,t:"SEE standart qiymatdan yuqori",d:`${where}: ${fmt(c.see,3)} t CO₂e/t, standart qiymat ${fmt(sc.defSee,2)}. Bu holda standart qiymatdan foydalanish arzonroq bo‘lishi mumkin; avval ma’lumotni tekshiring.`});
+        if(c.see < sc.defSee*0.3) out.push({sev:"lo",inst,r,t:"SEE juda past",d:`${where}: ${fmt(c.see,3)} t CO₂e/t. Prekursorlar va barcha yoqilg‘i turlari kiritilganini tekshiring.`});
+      }
+      // tarixiy taqqoslash (bir xil davr turi bo'yicha)
+      const peers = res.filter((x,j)=>j!==idx && (x.r.q==="Y")===(r.q==="Y") && isFinite(x.c.see));
+      if(peers.length>=2 && isFinite(c.see)){
+        const m = peers.reduce((a,x)=>a+x.c.see,0)/peers.length;
+        const sd = Math.sqrt(peers.reduce((a,x)=>a+(x.c.see-m)**2,0)/peers.length) || m*0.03;
+        const z = (c.see-m)/sd, dev=(c.see-m)/m;
+        if(Math.abs(dev)>0.2 || (Math.abs(z)>3 && Math.abs(dev)>0.08)) out.push({sev:Math.abs(dev)>0.35?"hi":"mid",inst,r,t:"SEE boshqa davrlardan keskin farq qiladi",d:`${where}: ${fmt(c.see,3)} vs o‘rtacha ${fmt(m,3)} (${dev>0?"+":""}${fmt(dev*100,0)}%, z = ${fmt(z,1)}). Mumkin bo‘lgan sabab: hisoblagich xatosi, kiritishda nol yoki birlik xatosi, texnologik rejim o‘zgarishi.`});
+      }
+    });
+  }
+  const order={hi:0,mid:1,lo:2};
+  return out.sort((a,b)=>order[a.sev]-order[b.sev]);
+}
+function forecast(inst){
+  const res = sortRecs(S.recs.filter(r=>r.instId===inst.id && r.q!=="Y")).map(r=>({r,c:calc(r,inst)})).filter(x=>isFinite(x.c.see));
+  if(res.length<3) return null;
+  const xs=res.map((_,i)=>i), ys=res.map(x=>x.c.see), n=xs.length;
+  const mx=xs.reduce((a,b)=>a+b)/n, my=ys.reduce((a,b)=>a+b)/n;
+  const b=xs.reduce((a,x,i)=>a+(x-mx)*(ys[i]-my),0)/xs.reduce((a,x)=>a+(x-mx)**2,0), a=my-b*mx;
+  const resid=Math.sqrt(ys.reduce((s,y,i)=>s+(y-(a+b*i))**2,0)/Math.max(1,n-2));
+  return {next:a+b*n, slope:b, resid, n};
+}
+
+/* ============ Ma'lumotlar ombori ============ */
+/* Server API (server.js) bilan ishlash */
+async function api(method, url, body){
+  const res = await fetch(url, {method, headers: body ? {"Content-Type":"application/json"} : {}, body: body ? JSON.stringify(body) : undefined});
+  const data = await res.json().catch(()=> ({}));
+  if(!res.ok){ const e = new Error(data.error || ("HTTP " + res.status)); e.code = data.code || res.status; throw e; }
+  return data;
+}
+function mergeParams(d){
+  return {...structuredClone(DEFAULT_PARAMS), ...d, cf:{...DEFAULT_PARAMS.cf, ...(d.cf||{})}, sec:{...structuredClone(DEFAULT_PARAMS.sec), ...(d.sec||{})}};
+}
+const sortInst = a => a.sort((x,y)=>String(x.name).localeCompare(String(y.name)));
+async function boot(){
+  render();
+  try{
+    const st = await api("GET", "/api/state");
+    S.inst = sortInst(st.installations || []); S.recs = st.records || [];
+    if(st.params) S.params = mergeParams(st.params);
+    S.db = true;
+    if(st.aiEnabled){
+      const sample = async (messages) => api("POST", "/api/ai/chat", {messages});
+      sample.json = async (prompt) => (await api("POST", "/api/ai/chat", {messages:[{role:"user", content:prompt}], json:true})).data;
+      S.sample = sample;
+    }
+  }catch(e){
+    S.db = null; toast("Server bilan aloqa yo‘q: " + e.message);
+  }
+  S.downloads = { async save({filename, data}){
+    const url = URL.createObjectURL(new Blob([data], {type:"text/csv;charset=utf-8"}));
+    const a = document.createElement("a"); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url), 1000); return {status:"saved"};
+  }};
+  setStore(!!S.db); S.loaded.inst = S.loaded.recs = true; render();
+}
+function setStore(ok){
+  $("#storeState").innerHTML = ok ? `<span class="dot on"></span>Server ulangan` : `<span class="dot off"></span>Server bilan aloqa yo‘q`;
+}
+async function save(coll, id, data){
+  if(!S.db){ toast("Server bilan aloqa yo‘q — ma’lumot saqlanmadi."); return false; }
+  try{
+    const saved = await api("PUT", `/api/${coll}/${encodeURIComponent(id)}`, data);
+    const arr = coll==="installations" ? S.inst : S.recs; const i = arr.findIndex(x=>x.id===id);
+    if(i>=0) arr[i] = saved; else arr.push(saved);
+    if(coll==="installations") sortInst(S.inst);
+    render(); return true;
+  }catch(e){ toast("Saqlanmadi: " + e.message); return false; }
+}
+async function del(coll, id){
+  if(!S.db){ toast("Server bilan aloqa yo‘q."); return; }
+  try{ await api("DELETE", `/api/${coll}/${encodeURIComponent(id)}`); }catch(e){ toast("O‘chirilmadi: " + e.message); return; }
+  const arr = coll==="installations" ? S.inst : S.recs; const i = arr.findIndex(x=>x.id===id); if(i>=0) arr.splice(i,1); render();
+}
+const newId = p => p+"-"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+
+/* ============ Renderlash ============ */
+function render(){
+  $("#nav").innerHTML = VIEWS.map(v=>`<button data-v="${v.k}" ${S.view===v.k?'aria-current="page"':''}>${v.n}${v.c?`<span class="navcount">${v.c()}</span>`:""}</button>`).join("");
+  const m=$("#main"); const keepScroll = m.scrollTop;
+  const active = document.activeElement; const activeId = active && m.contains(active) ? active.id : null;
+  if(S.view==="data" && $("#recForm")) { /* forma ochiq — qayta chizmaymiz, faqat ro'yxatni yangilaymiz */ renderRecTable(); return; }
+  if(S.view==="inst" && $("#instForm") && activeId) { renderInstTable(); return; }
+  if(S.view==="settings" && $("#parForm") && activeId) return;
+  if(S.view==="ai" && $("#chatIn") && activeId==="chatIn") { renderChatLog(); return; }
+  m.innerHTML = ({panel:vPanel,inst:vInst,data:vData,calc:vCalc,ai:vAI,report:vReport,settings:vSettings}[S.view])();
+  if(S.view==="data") renderRecTable();
+  if(S.view==="inst") renderInstTable();
+  if(S.view==="ai") renderChatLog();
+  if(activeId && document.getElementById(activeId)) document.getElementById(activeId).focus();
+}
+const loading = ()=> S.db && !(S.loaded.inst && S.loaded.recs);
+const exampleNote = ()=> S.inst.some(i=>i.example) ? `<div class="banner">Hozir <b>namuna ma’lumotlar</b> ko‘rsatilmoqda (shartli korxonalar, haqiqiy emas). O‘z inshootingizni “Inshootlar reyestri” bo‘limida qo‘shing; namunalarni o‘sha yerda o‘chirish mumkin.</div>` : "";
+const roNote = ()=> !S.canWrite ? `<div class="banner">Siz ushbu platformani faqat ko‘rish huquqi bilan ochgansiz. Ma’lumot kiritish uchun egasidan “Contributor” darajasini so‘rang.</div>` : (!S.db ? `<div class="banner">Server bilan aloqa yo‘q. Terminalda <code>npm start</code> ishga tushganini tekshiring va sahifani yangilang.</div>` : "");
+
+function yearAgg(year){
+  const rows=[]; for(const r of S.recs){ const inst=instById(r.instId); if(!inst||r.year!==year) continue; rows.push({r,inst,c:calc(r,inst)}); }
+  // agar yillik va choraklik ikkalasi bo'lsa — yillikni ishlatamiz
+  const byInst={}; rows.forEach(x=>{ (byInst[x.inst.id] ||= []).push(x); });
+  const use=[]; Object.values(byInst).forEach(a=>{ const y=a.filter(x=>x.r.q==="Y"); use.push(...(y.length?y:a)); });
+  const sum=k=>use.reduce((a,x)=>a+(x.c[k]||0),0);
+  return {use, total:sum("total"), direct:sum("direct"), M:sum("M"), net:sum("net"), netDef:sum("netDef"), saving:sum("saving"), natTax:sum("natTax"), deduction:sum("deduction"), gross:sum("gross")};
+}
+
+function vPanel(){
+  if(loading()) return `<div class="view"><div class="empty">Ma’lumotlar yuklanmoqda…</div></div>`;
+  const P=S.params, Y=P.year, A=yearAgg(Y), an=analyze();
+  const instN=S.inst.length;
+  if(!instN) return `<div class="view"><div class="head"><div><h1>Monitoring paneli</h1><p class="sub">Eksportyorlar emissiyalari, milliy uglerod to‘lovi va CBAM bo‘yicha moliyaviy yuk bir joyda.</p></div></div>${roNote()}
+    <div class="empty"><b>Hali inshoot yo‘q.</b><br>Birinchi qadam: “Inshootlar reyestri”da korxona va ishlab chiqarish inshootini qo‘shing, so‘ng “Ma’lumot kiritish”da chorak yoki yil ma’lumotlarini kiriting.<br><br><button class="btn" data-go="inst">Inshoot qo‘shish</button></div></div>`;
+  return `<div class="view">
+  <div class="head"><div><h1>Monitoring paneli · ${Y}</h1><p class="sub">${instN} ta inshoot bo‘yicha ${A.use.length} ta hisobot davri. CBAM xarajati EU ETS narxi ${fmt(P.etsPrice)} €/t va bepul kvotalar ulushi ${fmt(P.cf[Y]??0,1)}% asosida.</p></div>
+  <div class="row"><label style="flex-direction:row;align-items:center;gap:8px">Yil <select id="yearSel" style="width:auto">${[2025,2026,2027,2028].map(y=>`<option ${y===Y?"selected":""}>${y}</option>`).join("")}</select></label></div></div>
+  ${exampleNote()}${roNote()}
+  <div class="kpis">
+    <div class="kpi"><span class="l">Jami emissiyalar</span><span class="v">${fmt(A.total/1000,1)}<small>ming t CO₂e</small></span><span class="n">to‘g‘ridan-to‘g‘ri ${fmt(A.direct/1000,1)} ming t</span></div>
+    <div class="kpi"><span class="l">YeIga eksport</span><span class="v">${fmt(A.M/1000,1)}<small>ming t</small></span><span class="n">CBAM qamrovidagi mahsulot</span></div>
+    <div class="kpi hl"><span class="l">CBAM sof xarajati</span><span class="v">${fmt(A.net)}<small>€</small></span><span class="n">${Y<2026?"o‘tish davri, to‘lov yo‘q":`milliy narx chegirmasi ${fmt(A.deduction)} €`}</span></div>
+    <div class="kpi"><span class="l">Milliy uglerod to‘lovi</span><span class="v">${fmt(A.natTax/1e6,1)}<small>mln so‘m</small></span><span class="n">O‘zbekiston byudjetiga</span></div>
+  </div>
+  <div class="grid2">
+    <section class="panel"><h2>Solishtirma emissiyalar (SEE) va standart qiymat <span class="pill ok">t CO₂e / t</span></h2>${chartSee(A.use)}
+      <p class="note">Haqiqiy ma’lumotdan foydalanish standart qiymat (ustama ${fmt(P.markup)}% bilan) o‘rniga ${Y>=2026?`<b>${fmt(A.saving)} €</b> tejaydi`:"2026-yildan tejamni ko‘rsatadi"}.</p></section>
+    <section class="panel"><h2>Emissiyalar dinamikasi <span class="pill ok">ming t CO₂e / chorak</span></h2>${chartTrend()}</section>
+  </div>
+  <section class="panel"><h2>Avtomatik tahlil: e’tibor talab qiladigan holatlar <span class="pill ${an.some(a=>a.sev==="hi")?"hi":an.length?"mid":"ok"}">${an.length} ta</span></h2>
+    ${an.length? `<div class="list">${an.slice(0,6).map(sevCard).join("")}</div>${an.length>6?`<p class="note">Yana ${an.length-6} ta holat — “AI tahlil” bo‘limida.</p>`:""}` : `<p class="note">Anomaliya topilmadi.</p>`}</section>
+  </div>`;
+}
+const sevName={hi:"Yuqori",mid:"O‘rta",lo:"Past"};
+const sevCard = a => `<div class="sev ${a.sev}"><b><span class="pill ${a.sev}">${sevName[a.sev]}</span> ${esc(a.t)}</b><span>${esc(a.d)}</span></div>`;
+
+function chartSee(use){
+  const items = S.inst.map((inst,i)=>{ const a=use.filter(x=>x.inst.id===inst.id&&isFinite(x.c.see)); if(!a.length) return null;
+    const out=a.reduce((s,x)=>s+x.c.output,0), tot=a.reduce((s,x)=>s+x.c.total,0); const see=tot/out;
+    const sc=S.params.sec[inst.sector]; return {inst, see, def:sc.defSee*(1+S.params.markup/100), bm:a[0].c.bmUnit}; }).filter(Boolean);
+  if(!items.length) return `<div class="empty">Tanlangan yil uchun ma’lumot yo‘q.</div>`;
+  const W=560, rowH=54, padL=170, padR=60, H=items.length*rowH+34;
+  const max=Math.max(...items.map(x=>Math.max(x.see,x.def,x.bm)))*1.08;
+  const X=v=>padL+(W-padL-padR)*v/max;
+  const ticks=niceTicks(max,4);
+  let s=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="SEE taqqoslash">`;
+  ticks.forEach(t=>{ s+=`<line x1="${X(t)}" x2="${X(t)}" y1="6" y2="${H-24}" stroke="var(--line)"/><text x="${X(t)}" y="${H-8}" text-anchor="middle">${fmt(t,t<1?2:1)}</text>`; });
+  items.forEach((it,i)=>{ const y=10+i*rowH;
+    s+=`<text x="0" y="${y+14}" style="fill:var(--ink);font-weight:600">${esc(trim(it.inst.name,24))}</text><text x="0" y="${y+30}">${esc(SECTORS[it.inst.sector].n)}</text>`;
+    s+=`<rect x="${padL}" y="${y+2}" width="${Math.max(1,X(it.see)-padL)}" height="16" rx="3" fill="var(--accent)"/><text x="${X(it.see)+6}" y="${y+14}" style="fill:var(--ink);font-family:var(--f-mono)">${fmt(it.see,3)}</text>`;
+    s+=`<rect x="${padL}" y="${y+22}" width="${Math.max(1,X(it.def)-padL)}" height="10" rx="2" fill="var(--amber)" opacity=".55"/><text x="${X(it.def)+6}" y="${y+31}" style="font-family:var(--f-mono)">${fmt(it.def,2)}</text>`;
+    s+=`<line x1="${X(it.bm)}" x2="${X(it.bm)}" y1="${y}" y2="${y+36}" stroke="var(--ink)" stroke-width="2" stroke-dasharray="3 2"/>`;
+  });
+  s+=`</svg>`;
+  return `<div class="chart">${s}</div><div class="legend"><span><i style="background:var(--accent)"></i>Haqiqiy SEE</span><span><i style="background:var(--amber);opacity:.6"></i>Standart qiymat + ustama</span><span><i style="background:transparent;border:2px dashed var(--ink);width:8px;height:8px"></i>EU ETS benchmark</span></div>`;
+}
+function chartTrend(){
+  const series = S.inst.map((inst,i)=>({inst, color:`var(--s${(i%4)+1})`, pts:sortRecs(S.recs.filter(r=>r.instId===inst.id&&r.q!=="Y")).map(r=>({k:periodKey(r), lab:r.year+" "+r.q, v:calc(r,inst).total/1000}))})).filter(s=>s.pts.length);
+  if(!series.length) return `<div class="empty">Choraklik ma’lumot yo‘q.</div>`;
+  const keys=[...new Set(series.flatMap(s=>s.pts.map(p=>p.k)))].sort((a,b)=>{const [ya,qa]=a.split("-"),[yb,qb]=b.split("-");return ya-yb||Q.indexOf(qa)-Q.indexOf(qb);});
+  const W=560,H=230,pl=44,pr=14,pt=10,pb=30, max=Math.max(...series.flatMap(s=>s.pts.map(p=>p.v)))*1.1;
+  const X=k=>pl+(W-pl-pr)*(keys.length===1?0.5:keys.indexOf(k)/(keys.length-1)), Yv=v=>pt+(H-pt-pb)*(1-v/max);
+  const ticks=niceTicks(max,4);
+  let s=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Choraklik emissiyalar">`;
+  ticks.forEach(t=>{ s+=`<line x1="${pl}" x2="${W-pr}" y1="${Yv(t)}" y2="${Yv(t)}" stroke="var(--line)"/><text x="${pl-6}" y="${Yv(t)+4}" text-anchor="end">${fmt(t,0)}</text>`; });
+  keys.forEach((k,i)=>{ if(keys.length>8 && i%2) return; const [y,q]=k.split("-"); s+=`<text x="${X(k)}" y="${H-10}" text-anchor="middle">${q} ${y.slice(2)}</text>`; });
+  series.forEach(se=>{ const d=se.pts.map((p,i)=>(i?"L":"M")+X(p.k).toFixed(1)+" "+Yv(p.v).toFixed(1)).join(" ");
+    s+=`<path d="${d}" fill="none" stroke="${se.color}" stroke-width="2"/>`; se.pts.forEach((p,i)=>{ const last=i===se.pts.length-1; s+=`<circle cx="${X(p.k)}" cy="${Yv(p.v)}" r="${last?4:2.5}" fill="${last?se.color:"var(--surface)"}" stroke="${se.color}" stroke-width="1.5"><title>${esc(se.inst.name)} · ${p.lab}: ${fmt(p.v,1)} ming t</title></circle>`; }); });
+  s+=`</svg>`;
+  return `<div class="chart">${s}</div><div class="legend">${series.map(se=>`<span><i style="background:${se.color}"></i>${esc(trim(se.inst.name,30))}</span>`).join("")}</div>`;
+}
+function niceTicks(max,n){ const raw=max/n, p=Math.pow(10,Math.floor(Math.log10(raw||1))), st=[1,2,2.5,5,10].map(x=>x*p).find(x=>x>=raw)||p; const t=[]; for(let v=0;v<=max+1e-9;v+=st) t.push(+v.toFixed(6)); return t; }
+const trim=(s,n)=>{s=String(s||"");return s.length>n?s.slice(0,n-1)+"…":s;};
+
+/* ---- Inshootlar ---- */
+function vInst(){
+  return `<div class="view"><div class="head"><div><h1>Inshootlar reyestri</h1><p class="sub">CBAM qamrovidagi eksportyor korxonalar va ularning ishlab chiqarish inshootlari (FT-1.1 – FT-1.4).</p></div></div>
+  ${exampleNote()}${roNote()}
+  <section class="panel"><h2>Ro‘yxat ${S.inst.some(i=>i.example)&&S.canWrite?`<span class="confirm" id="exDelWrap"><button class="btn danger small" data-act="exdel">Namunalarni o‘chirish</button></span>`:""}</h2><div id="instTable"></div></section>
+  ${S.canWrite?`<section class="panel"><h2>Yangi inshoot qo‘shish</h2>
+  <form id="instForm" novalidate>
+    <div class="fields">
+      <label>Inshoot nomi<input id="f_name" required placeholder="masalan: Klinker liniyasi №2"></label>
+      <label>Eksportyor korxona<input id="f_exp" required placeholder="Yuridik shaxs nomi"></label>
+      <label>STIR <em>9 raqam</em><input id="f_stir" inputmode="numeric" maxlength="9" placeholder="123456789"></label>
+      <label>Tarmoq<select id="f_sec">${Object.entries(SECTORS).map(([k,v])=>`<option value="${k}">${v.n}</option>`).join("")}</select></label>
+      <label>Mahsulot<input id="f_prod" placeholder="${SECTORS.cement.product}"></label>
+      <label>CN kodi <em>8 raqam</em><input id="f_cn" inputmode="numeric" maxlength="10" placeholder="25232900"></label>
+      <label>Hudud<select id="f_reg">${REGIONS.map(r=>`<option>${r}</option>`).join("")}</select></label>
+    </div>
+    <div class="row"><button class="btn" type="submit">Reyestrga qo‘shish</button><span class="note" id="instMsg"></span></div>
+  </form></section>`:""}</div>`;
+}
+function renderInstTable(){
+  const el=$("#instTable"); if(!el) return;
+  if(loading()){ el.innerHTML=`<div class="empty">Yuklanmoqda…</div>`; return; }
+  if(!S.inst.length){ el.innerHTML=`<div class="empty">Reyestr bo‘sh. Quyidagi shakl orqali birinchi inshootni qo‘shing.</div>`; return; }
+  el.innerHTML=`<div class="tablewrap"><table><thead><tr><th>Inshoot</th><th>Eksportyor / STIR</th><th>Tarmoq</th><th>Mahsulot / CN</th><th>Hudud</th><th class="num">Davrlar</th><th></th></tr></thead><tbody>
+  ${S.inst.map(i=>`<tr><td><b>${esc(i.name)}</b> ${i.example?'<span class="pill ex">Namuna</span>':""}</td><td>${esc(i.exporter)}<br><span class="mono note">${esc(i.stir||"—")}</span></td><td>${esc(SECTORS[i.sector]?.n)}</td><td>${esc(i.product)}<br><span class="mono note">${esc(i.cn||"—")}</span></td><td>${esc(i.region)}</td><td class="num">${S.recs.filter(r=>r.instId===i.id).length}</td>
+  <td>${S.canWrite?`<span class="confirm" data-wrap="${i.id}"><button class="btn ghost small" data-act="idel" data-id="${i.id}">O‘chirish</button></span>`:""}</td></tr>`).join("")}</tbody></table></div>`;
+}
+
+/* ---- Ma'lumot kiritish ---- */
+function vData(){
+  if(!S.inst.length) return `<div class="view"><div class="head"><div><h1>Ma’lumot kiritish</h1></div></div><div class="empty">Avval “Inshootlar reyestri”da inshoot qo‘shing.<br><br><button class="btn" data-go="inst">Inshoot qo‘shish</button></div></div>`;
+  if(!S.selInst || !instById(S.selInst)) S.selInst=S.inst[0].id;
+  const inst=instById(S.selInst), sec=inst.sector;
+  const fl = (id,lab,unit,hint="")=>`<label>${lab} <em>${unit}</em><input id="${id}" type="number" step="any" min="0" inputmode="decimal" ${hint?`placeholder="${hint}"`:""}></label>`;
+  return `<div class="view"><div class="head"><div><h1>Ma’lumot kiritish</h1><p class="sub">Faoliyat ma’lumotlari: yoqilg‘i, xomashyo, elektr energiyasi va mahsulot hajmi (FT-2.1, FT-2.7). Bir inshoot va davr uchun qayta kiritish oldingi yozuvni yangilaydi.</p></div></div>
+  ${roNote()}
+  ${S.canWrite?`<section class="panel"><h2>Yangi hisobot davri</h2>
+  <form id="recForm" novalidate>
+    <div class="fields">
+      <label>Inshoot<select id="r_inst">${S.inst.map(i=>`<option value="${i.id}" ${i.id===S.selInst?"selected":""}>${esc(i.name)} — ${esc(SECTORS[i.sector].n)}</option>`).join("")}</select></label>
+      <label>Yil<select id="r_year">${[2024,2025,2026,2027].map(y=>`<option ${y===S.params.year?"selected":""}>${y}</option>`).join("")}</select></label>
+      <label>Davr<select id="r_q">${Q.map(q=>`<option value="${q}">${QN[q]}</option>`).join("")}</select></label>
+    </div>
+    <fieldset><legend>Yoqilg‘i sarfi</legend><div class="fields">${FUELS.map(F=>fl("fu_"+F.k,F.n,F.u)).join("")}</div></fieldset>
+    <fieldset><legend>Texnologik jarayon · ${esc(SECTORS[sec].n)}</legend><div class="fields">
+      ${sec==="cement"?fl("r_clinker","Klinker ishlab chiqarildi","t")+fl("r_cao","Klinkerdagi CaO","%","bo‘sh: IPCC 0,52")+fl("r_mgo","Klinkerdagi MgO","%"):""}
+      ${sec==="steel"?fl("r_limestone","Ohaktosh/dolomit","t")+fl("r_electrode","Grafit elektrodlar","t"):""}
+      ${sec==="aluminium"?fl("r_anode","Anod iste’moli","t")+fl("r_pfc","PFC emissiyalari","t CO₂e"):""}
+      ${sec==="fertilizer"?fl("r_n2o","N₂O emissiyalari (nitrat kislota)","t N₂O"):""}
+      ${fl("r_prec","Xarid qilingan prekursorlar ichki emissiyasi","t CO₂e","yetkazib beruvchi ma’lumoti")}
+    </div></fieldset>
+    <fieldset><legend>Energiya va mahsulot</legend><div class="fields">
+      ${fl("r_el","Elektr energiyasi iste’moli","MVt·soat")}
+      ${fl("r_out","Ishlab chiqarilgan mahsulot","t")}
+      ${fl("r_exp","Yevropa Ittifoqiga eksport","t")}
+      <label>Izoh<input id="r_note" placeholder="manba, hisoblagich, o‘zgarishlar"></label>
+    </div></fieldset>
+    <div id="livePreview" class="note"></div>
+    <div class="row"><button class="btn" type="submit">Saqlash va hisoblash</button><span class="note" id="recMsg"></span></div>
+  </form></section>`:""}
+  <section class="panel"><h2>Kiritilgan davrlar · <span id="recInstName">${esc(inst.name)}</span></h2><div id="recTable"></div></section></div>`;
+}
+function renderRecTable(){
+  const el=$("#recTable"); if(!el) return;
+  const inst=instById(S.selInst); if(!inst){ el.innerHTML=""; return; }
+  $("#recInstName") && ($("#recInstName").textContent=inst.name);
+  const recs=sortRecs(S.recs.filter(r=>r.instId===inst.id)).reverse();
+  if(!recs.length){ el.innerHTML=`<div class="empty">Bu inshoot uchun hali davr kiritilmagan.</div>`; return; }
+  el.innerHTML=`<div class="tablewrap"><table><thead><tr><th>Davr</th><th class="num">Mahsulot, t</th><th class="num">To‘g‘ridan-to‘g‘ri, t CO₂e</th><th class="num">Bilvosita, t CO₂e</th><th class="num">SEE</th><th class="num">YeIga eksport, t</th><th></th></tr></thead><tbody>
+  ${recs.map(r=>{const c=calc(r,inst);return `<tr><td>${periodLabel(r)} ${r.example?'<span class="pill ex">Namuna</span>':""}</td><td class="num">${fmt(c.output)}</td><td class="num">${fmt(c.direct)}</td><td class="num">${SECTORS[inst.sector].indirect?fmt(c.indirect):'<span class="note">hisobga olinmaydi</span>'}</td><td class="num"><b>${fmt(c.see,3)}</b></td><td class="num">${fmt(c.M)}</td>
+  <td>${S.canWrite?`<span class="confirm" data-wrap="${r.id}"><button class="btn ghost small" data-act="redit" data-id="${r.id}">Tahrirlash</button> <button class="btn ghost small" data-act="rdel" data-id="${r.id}">O‘chirish</button></span>`:""}</td></tr>`;}).join("")}</tbody></table></div>`;
+}
+function readRecForm(){
+  const v=id=>$("#"+id)?.value ?? "";
+  const r={instId:v("r_inst"), year:+v("r_year"), q:v("r_q"), fuels:{}, note:v("r_note").trim()};
+  FUELS.forEach(F=>{ const x=num(v("fu_"+F.k)); if(x) r.fuels[F.k]=x; });
+  [["clinker","r_clinker"],["cao","r_cao"],["mgo","r_mgo"],["limestone","r_limestone"],["electrode","r_electrode"],["anode","r_anode"],["pfc","r_pfc"],["n2o","r_n2o"],["precursors","r_prec"],["electricity","r_el"],["output","r_out"],["exportEU","r_exp"]].forEach(([k,id])=>{ if($("#"+id)) r[k]=num(v(id)); });
+  return r;
+}
+function fillRecForm(r){
+  const set=(id,val)=>{ const el=$("#"+id); if(el) el.value = (val||val===0)&&val!==0 ? val : (val===0?"":""); };
+  $("#r_year").value=r.year; $("#r_q").value=r.q;
+  FUELS.forEach(F=>set("fu_"+F.k, r.fuels?.[F.k]));
+  [["clinker","r_clinker"],["cao","r_cao"],["mgo","r_mgo"],["limestone","r_limestone"],["electrode","r_electrode"],["anode","r_anode"],["pfc","r_pfc"],["n2o","r_n2o"],["precursors","r_prec"],["electricity","r_el"],["output","r_out"],["exportEU","r_exp"]].forEach(([k,id])=>set(id,r[k]));
+  $("#r_note").value=r.note||""; updatePreview();
+}
+function updatePreview(){
+  const el=$("#livePreview"); if(!el) return; const r=readRecForm(); const inst=instById(r.instId); if(!inst) return;
+  const c=calc(r,inst);
+  el.innerHTML = c.output>0 ? `Oldindan hisob: to‘g‘ridan-to‘g‘ri <b class="mono">${fmt(c.direct)}</b> t CO₂e · bilvosita <b class="mono">${fmt(c.indirect)}</b> · SEE <b class="mono">${fmt(c.see,3)}</b> t CO₂e/t${c.cfPct!=null&&c.M>0?` · CBAM sof xarajati <b class="mono">${fmt(c.net)}</b> €`:""}` : "Mahsulot hajmini kiritsangiz, SEE shu yerda hisoblanadi.";
+}
+
+/* ---- Hisob-kitob ---- */
+function vCalc(){
+  if(!S.inst.length) return `<div class="view"><h1>Hisob-kitob va CBAM</h1><div class="empty">Avval inshoot va ma’lumot qo‘shing.</div></div>`;
+  if(!S.selInst || !instById(S.selInst)) S.selInst=S.inst[0].id;
+  const inst=instById(S.selInst); const recs=sortRecs(S.recs.filter(r=>r.instId===inst.id));
+  const sel = S.selRec && recs.find(r=>r.id===S.selRec) ? recs.find(r=>r.id===S.selRec) : recs[recs.length-1];
+  const P=S.params;
+  let body = `<div class="empty">Bu inshoot uchun ma’lumot kiritilmagan.</div>`;
+  if(sel){ const c=calc(sel,inst); const fc=forecast(inst);
+    body = `<div class="grid2">
+    <section class="panel"><h2>1. Emissiyalar (inshoot) <span class="pill ok">${periodLabel(sel)}</span></h2>
+      <div class="tablewrap"><table><thead><tr><th>Manba</th><th class="num">Miqdor</th><th class="num">t CO₂e</th></tr></thead><tbody>
+      ${c.fuelLines.map(x=>`<tr><td>${x.n} (yoqish)</td><td class="num">${fmt(x.q,1)} ${FUELS.find(F=>F.k===x.k).u}</td><td class="num">${fmt(x.t)}</td></tr>`).join("")}
+      ${c.procLines.map(x=>`<tr><td>${x.n}${x.note?`<br><span class="note">${x.note}</span>`:""}</td><td class="num">—</td><td class="num">${fmt(x.t)}</td></tr>`).join("")}
+      <tr><td><b>To‘g‘ridan-to‘g‘ri jami</b></td><td></td><td class="num"><b>${fmt(c.direct)}</b></td></tr>
+      <tr><td>Bilvosita: elektr ${SECTORS[c.sec].indirect?"":"<span class='note'>(bu tarmoqda CBAMga kirmaydi)</span>"}</td><td class="num">${fmt(num(sel.electricity))} MVt·soat × ${fmt(P.gridEf,2)}</td><td class="num">${fmt(c.indirect)}</td></tr>
+      <tr><td>Xarid qilingan prekursorlar</td><td></td><td class="num">${fmt(c.precursors)}</td></tr>
+      <tr><td><b>Ichki emissiyalar jami</b></td><td></td><td class="num"><b>${fmt(c.total)}</b></td></tr></tbody></table></div>
+      <dl class="kv" style="margin-top:12px"><dt>Mahsulot</dt><dd>${fmt(c.output)} t</dd><dt>SEE</dt><dd><b>${fmt(c.see,4)}</b> t CO₂e/t</dd>${c.clinkerRatio!=null?`<dt>Klinker koeffitsiyenti</dt><dd>${fmt(c.clinkerRatio,3)}</dd>`:""}${fc?`<dt>Keyingi chorak prognozi</dt><dd>${fmt(fc.next,3)} ± ${fmt(fc.resid*1.96,3)} <span class="note">(chiziqli trend, ${fc.n} davr)</span></dd>`:""}</dl>
+    </section>
+    <section class="panel"><h2>2. CBAM moliyaviy yuki <span class="pill ${c.cfPct==null?"lo":"mid"}">${c.cfPct==null?"o‘tish davri":"definitiv davr"}</span></h2>
+      ${c.cfPct==null?`<p class="note">${sel.year}-yil CBAM o‘tish davriga kiradi: faqat hisobot topshiriladi, sertifikat sotib olinmaydi.</p>`:""}
+      <dl class="kv">
+        <dt>YeIga eksport (M)</dt><dd>${fmt(c.M)} t</dd>
+        <dt>Ichki emissiyalar (SEE × M)</dt><dd>${fmt(c.embedded)} t CO₂e</dd>
+        <dt>Bepul kvota tuzatishi</dt><dd>− ${fmt(c.freeAdj)} t <span class="note">(benchmark ${fmt(c.bmUnit,3)} × ${fmt(c.cfPct??0,1)}%)</span></dd>
+        <dt>CBAM sertifikatlari</dt><dd><b>${fmt(c.certs)}</b> dona</dd>
+        <dt>Yalpi qiymat</dt><dd>${fmt(c.gross)} € <span class="note">(× ${fmt(P.etsPrice)} €)</span></dd>
+        <dt>Milliy uglerod narxi chegirmasi</dt><dd>− ${fmt(c.deduction)} € <span class="note">(${fmt(P.natRate)} so‘m ÷ ${fmt(P.eurRate)} = ${fmt(P.natRate/P.eurRate,2)} €/t)</span></dd>
+        <dt><b>CBAM sof xarajati</b></dt><dd><b style="color:var(--amber)">${fmt(c.net)} €</b> · ${fmt(c.M>0?c.net/c.M:0,2)} €/t mahsulot</dd>
+      </dl>
+      <div class="formula" style="margin-top:12px">N = max(0; SEE×M − BM×CF×M)
+Xarajat = N × P_ETS − min(N × P_milliy; N × P_ETS)</div>
+      <h2 style="margin-top:16px">Standart qiymat bilan taqqoslash</h2>
+      <dl class="kv"><dt>Standart SEE + ${fmt(P.markup)}% ustama</dt><dd>${fmt(c.defSee,3)} t CO₂e/t</dd><dt>Standart qiymatda xarajat</dt><dd>${fmt(c.netDef)} €</dd><dt>Haqiqiy ma’lumot tejami</dt><dd><b style="color:var(--good)">${fmt(c.saving)} €</b></dd></dl>
+      <h2 style="margin-top:16px">O‘zbekiston byudjetiga</h2>
+      <dl class="kv"><dt>Milliy uglerod to‘lovi</dt><dd>${fmt(c.natTax/1e6,2)} mln so‘m <span class="note">(to‘g‘ridan-to‘g‘ri emissiyalar × ${fmt(P.natCoverage)}% × ${fmt(P.natRate)} so‘m)</span></dd></dl>
+    </section></div>`;
+  }
+  return `<div class="view"><div class="head"><div><h1>Hisob-kitob va CBAM</h1><p class="sub">Har bir qator formulasi ko‘rinib turadi: auditor va verifikator hisobni qadamma-qadam tekshira oladi (FT-3, FT-4).</p></div>
+  <div class="row"><select id="cInst" style="width:auto">${S.inst.map(i=>`<option value="${i.id}" ${i.id===inst.id?"selected":""}>${esc(i.name)}</option>`).join("")}</select>
+  <select id="cRec" style="width:auto">${recs.map(r=>`<option value="${r.id}" ${sel&&r.id===sel.id?"selected":""}>${periodLabel(r)}</option>`).join("")}</select></div></div>
+  ${body}
+  <section class="panel"><h2>Ssenariy: uglerod narxi o‘zgarsa</h2>${scenarioTable(inst, sel)}</section></div>`;
+}
+function scenarioTable(inst, sel){
+  if(!sel) return `<p class="note">Ma’lumot yo‘q.</p>`;
+  const P=S.params; const rows=[[0,"Milliy narx yo‘q"],[P.natRate,"Joriy taklif"],[P.natRate*2,"2 baravar"],[P.natRate*5,"5 baravar"]];
+  return `<div class="tablewrap"><table><thead><tr><th>Milliy stavka, so‘m/t</th><th class="num">CBAM chegirmasi, €</th><th class="num">YeIga to‘lanadi (CBAM sof), €</th><th class="num">O‘zbekiston byudjetiga, mln so‘m</th></tr></thead><tbody>
+  ${rows.map(([rate,l])=>{ const c=calc(sel,inst,{...P,natRate:rate}); return `<tr><td>${fmt(rate)} <span class="note">${l}</span></td><td class="num">${fmt(c.deduction)}</td><td class="num">${fmt(c.net)}</td><td class="num">${fmt(c.natTax/1e6,1)}</td></tr>`; }).join("")}
+  </tbody></table></div><p class="note">Milliy stavka oshgani sari CBAM bo‘yicha YeIga to‘lov kamayadi, chunki to‘langan narx chegiriladi; korxonaning umumiy yuki esa milliy to‘lov hisobiga oshadi. Tarmoq raqobatbardoshligini hisobga olib stavka tanlanadi.</p>`;
+}
+
+/* ---- AI tahlil ---- */
+function vAI(){
+  const an=analyze();
+  const fcs=S.inst.map(i=>({i,f:forecast(i)})).filter(x=>x.f);
+  return `<div class="view"><div class="head"><div><h1>AI tahlil</h1><p class="sub">Statistik model anomaliyalarni va trendni avtomatik topadi (AI-1, AI-3). Claude asosidagi yordamchi esa platformadagi raqamlar asosida savollarga javob beradi va dekarbonizatsiya bo‘yicha tavsiya tayyorlaydi (AI-5, AI-6). AI natijalari tavsiya xarakterida; rasmiy hisobotga faqat tasdiqlangan hisob-kitob kiradi.</p></div></div>
+  <div class="grid2">
+  <section class="panel"><h2>Anomaliyalar <span class="pill ${an.some(a=>a.sev==="hi")?"hi":an.length?"mid":"ok"}">${an.length} ta</span></h2>${an.length?`<div class="list">${an.map(sevCard).join("")}</div>`:`<p class="note">Anomaliya topilmadi.</p>`}</section>
+  <section class="panel"><h2>SEE prognozi (keyingi chorak)</h2>${fcs.length?`<div class="tablewrap"><table><thead><tr><th>Inshoot</th><th class="num">Prognoz</th><th class="num">95% oraliq</th><th class="num">Trend / chorak</th></tr></thead><tbody>${fcs.map(({i,f})=>`<tr><td>${esc(i.name)}</td><td class="num">${fmt(f.next,3)}</td><td class="num">± ${fmt(f.resid*1.96,3)}</td><td class="num" style="color:${f.slope>0?"var(--crit)":"var(--good)"}">${f.slope>0?"+":""}${fmt(f.slope,4)}</td></tr>`).join("")}</tbody></table></div>`:`<p class="note">Prognoz uchun kamida 3 ta choraklik davr kerak.</p>`}
+    <h2 style="margin-top:18px">Dekarbonizatsiya tavsiyalari</h2>
+    ${S.sample?`<div class="row"><select id="aiInst" style="width:auto">${S.inst.map(i=>`<option value="${i.id}">${esc(i.name)}</option>`).join("")}</select><button class="btn" data-act="airec">Tavsiya tayyorlash</button></div><div id="aiRecOut" style="margin-top:10px">${renderAiRec()}</div>`:`<p class="note">AI-yordamchi o‘chirilgan: <code>.env</code> faylida <code>ANTHROPIC_API_KEY</code> ni ko‘rsating va serverni qayta ishga tushiring.</p>`}
+  </section></div>
+  <section class="panel"><h2>AI-yordamchi <span class="pill ok">Claude</span></h2>
+    ${S.sample?`<div class="chat" id="chatLog"></div>
+    <div class="chips" style="margin:10px 0">${["Qaysi inshoot eng katta CBAM xarajatiga ega va nima uchun?","Anomaliyalarni tushuntirib, nimani tekshirish kerakligini ayt","Milliy uglerod stavkasi 2 baravar oshsa nima o‘zgaradi?","Sement uchun klinker koeffitsiyentini pasaytirish qancha tejaydi?"].map(q=>`<button class="chip" data-q="${esc(q)}">${esc(q)}</button>`).join("")}</div>
+    <form id="chatForm" class="row" style="flex-wrap:nowrap"><input id="chatIn" placeholder="Savolingizni yozing…" autocomplete="off"><button class="btn" type="submit" id="chatBtn">Yuborish</button></form>`:`<p class="note">AI-yordamchi o‘chirilgan: <code>.env</code> faylida <code>ANTHROPIC_API_KEY</code> ni ko‘rsating va serverni qayta ishga tushiring. Statistik tahlil yuqorida API kalitisiz ham ishlaydi.</p>`}
+  </section></div>`;
+}
+function renderChatLog(){
+  const el=$("#chatLog"); if(!el) return;
+  el.innerHTML = S.chat.length ? S.chat.map(m=>`<div class="msg ${m.role==="user"?"u":"a"}">${esc(m.content)}</div>`).join("") : `<p class="note">Savol bering — yordamchi platformadagi joriy ma’lumotlar va CBAM uslubiyoti asosida javob beradi.</p>`;
+}
+function renderAiRec(){
+  const id=$("#aiInst")?.value || S.inst[0]?.id; const r=S.aiRec[id];
+  if(!r) return `<p class="note">Inshootni tanlab, “Tavsiya tayyorlash”ni bosing.</p>`;
+  if(r.loading) return `<p class="note">Tayyorlanmoqda…</p>`;
+  if(r.error) return `<p class="note">${esc(r.error)}</p>`;
+  return `<div class="list">${r.items.map(x=>`<div class="sev lo"><b>${esc(x.chora)} <span class="pill ok">−${esc(x.kamayish_foiz)}% SEE</span></b><span>${esc(x.tavsif)}</span>${x.cbam_tejam_eur!=null?`<span>Taxminiy CBAM tejami: <b class="mono">${fmt(+x.cbam_tejam_eur)} €</b>/yil</span>`:""}</div>`).join("")}<p class="note">AI tavsiyasi — texnik-iqtisodiy asoslash bilan tekshirilishi kerak.</p></div>`;
+}
+function dataContext(){
+  const P=S.params;
+  return JSON.stringify({parametrlar:{yil:P.year, ets_eur:P.etsPrice, eur_som:P.eurRate, milliy_stavka_som:P.natRate, qamrov_foiz:P.natCoverage, tarmoq_ef:P.gridEf, ustama_foiz:P.markup, bepul_kvota_foiz:P.cf[P.year]},
+    inshootlar:S.inst.map(i=>({nomi:i.name, tarmoq:SECTORS[i.sector].n, namuna:!!i.example, standart_see:P.sec[i.sector].defSee, benchmark:P.sec[i.sector].bm,
+      davrlar:sortRecs(S.recs.filter(r=>r.instId===i.id)).map(r=>{const c=calc(r,i);return {davr:periodLabel(r), mahsulot_t:Math.round(c.output), togridan_t:Math.round(c.direct), bilvosita_t:Math.round(c.indirect), prekursor_t:Math.round(c.precursors), see:+c.see.toFixed(4), klinker_koef:c.clinkerRatio&&+c.clinkerRatio.toFixed(3), gj_per_t_klinker:c.fuelGJperClinker&&+c.fuelGJperClinker.toFixed(2), eksport_ei_t:c.M, cbam_sof_eur:Math.round(c.net), standartda_eur:Math.round(c.netDef), milliy_tolov_mln_som:+(c.natTax/1e6).toFixed(1)};})})),
+    anomaliyalar:analyze().map(a=>({daraja:sevName[a.sev], sarlavha:a.t, tafsilot:a.d}))});
+}
+const SYS = `Sen UzCarbon platformasining AI-yordamchisisan. Platforma O‘zbekiston eksportyorlari uchun issiqxona gazlari emissiyalari, milliy uglerod narxi va Yevropa Ittifoqi CBAM mexanizmi bo‘yicha hisob-kitob qiladi.
+Qoidalar: faqat o‘zbek tilida (lotin yozuvi) javob ber. Raqamlarni faqat quyidagi ma’lumotlardan ol, o‘zingdan to‘qima. Ma’lumot yetmasa, shuni ayt. Javob qisqa va aniq bo‘lsin (8–12 qatordan oshmasin), markdown belgilarisiz oddiy matn.
+Hisob uslubi (soddalashtirilgan MVP): SEE = (to‘g‘ridan-to‘g‘ri + bilvosita [sement va o‘g‘itda] + prekursorlar) / mahsulot. CBAM sertifikatlari N = max(0, SEE×M − benchmark×bepul_kvota_ulushi×M). Sof xarajat = N×ETS narxi − milliy uglerod narxi chegirmasi. "namuna": true bo‘lgan korxonalar shartli misol ekanini eslat.`;
+async function askChat(q){
+  if(!S.sample||S.busy||!q.trim()) return;
+  S.busy=true; S.chat.push({role:"user",content:q.trim()}); const ans={role:"assistant",content:"Tahlil qilinmoqda…"}; S.chat.push(ans); renderChatLog(); $("#chatBtn")?.setAttribute("disabled","");
+  const hist=S.chat.slice(0,-1).slice(-8).map(m=>({...m}));
+  hist[hist.length-1].content = `${SYS}\n\nPLATFORMA MA’LUMOTLARI (JSON):\n${dataContext()}\n\nSAVOL: ${q.trim()}`;
+  try{ const r=await S.sample(hist); ans.content=r.text; }
+  catch(e){ ans.content = e.code===429 ? "Juda ko‘p so‘rov yuborildi. Biroz kutib, qayta urinib ko‘ring." : "Javob olib bo‘lmadi: "+(e.message||e.code); }
+  S.busy=false; renderChatLog(); $("#chatBtn")?.removeAttribute("disabled");
+}
+async function aiRecommend(id){
+  const inst=instById(id); if(!inst||!S.sample) return;
+  S.aiRec[id]={loading:true}; $("#aiRecOut").innerHTML=renderAiRec();
+  const prompt=`${SYS}\n\nMA’LUMOTLAR:\n${dataContext()}\n\nVAZIFA: "${inst.name}" inshooti (${SECTORS[inst.sector].n}) uchun 4 ta eng samarali dekarbonizatsiya chora-tadbirini taklif qil. Har biri uchun SEE necha foizga kamayishini (taxminiy, butun son) va so‘nggi davr eksport hajmi va joriy parametrlar asosida yillik CBAM tejamini yevroda baholab ber. Faqat JSON massiv qaytar: [{"chora":"...","tavsif":"1-2 gap, nima uchun va qanday","kamayish_foiz":5,"cbam_tejam_eur":12000}]`;
+  try{ let items=await S.sample.json(prompt); if(!Array.isArray(items)) items=items?.items||[]; S.aiRec[id]={items:items.slice(0,6)}; }
+  catch(e){ S.aiRec[id]={error: e.code===429?"Juda ko‘p so‘rov. Biroz kutib, qayta urinib ko‘ring.":"Tavsiya olib bo‘lmadi: "+(e.message||e.code)}; }
+  if($("#aiRecOut") && $("#aiInst")?.value===id) $("#aiRecOut").innerHTML=renderAiRec();
+}
+
+/* ---- Hisobot ---- */
+function reportRows(year){
+  const rows=[]; for(const inst of S.inst){ for(const r of sortRecs(S.recs.filter(x=>x.instId===inst.id&&x.year===year))){ const c=calc(r,inst); rows.push({inst,r,c}); } } return rows;
+}
+function vReport(){
+  const Y=S.params.year; const rows=reportRows(Y);
+  return `<div class="view"><div class="head"><div><h1>CBAM hisoboti · ${Y}</h1><p class="sub">Xorijiy importyorga yuboriladigan ma’lumotlar (operator emissions report) va milliy hisobot uchun jamlanma (FT-7.1 – FT-7.3). Rasmiy shablon formatiga o‘tkazish keyingi bosqichda.</p></div>
+  <div class="row">${S.downloads?`<button class="btn" data-act="csv">CSV yuklab olish</button>`:""}</div></div>
+  ${exampleNote()}
+  <section class="panel">${rows.length?`<div class="tablewrap"><table><thead><tr><th>Inshoot / eksportyor</th><th>Mahsulot / CN</th><th>Davr</th><th class="num">Mahsulot, t</th><th class="num">To‘g‘ridan-to‘g‘ri SEE</th><th class="num">Bilvosita SEE</th><th class="num">Jami SEE</th><th class="num">YeIga, t</th><th class="num">Milliy narx, €/t CO₂e</th><th>Holati</th></tr></thead><tbody>
+  ${rows.map(({inst,r,c})=>`<tr><td><b>${esc(inst.name)}</b><br><span class="note">${esc(inst.exporter)} · ${esc(inst.stir||"")}</span></td><td>${esc(inst.product)}<br><span class="mono note">${esc(inst.cn||"")}</span></td><td>${periodLabel(r)}</td><td class="num">${fmt(c.output)}</td><td class="num">${fmt(c.seeDirect,4)}</td><td class="num">${fmt(c.output>0?c.indirect/c.output:NaN,4)}</td><td class="num"><b>${fmt(c.see,4)}</b></td><td class="num">${fmt(c.M)}</td><td class="num">${fmt(S.params.natRate/S.params.eurRate*S.params.natCoverage/100,2)}</td><td><span class="pill ${r.verified?"ok":"mid"}">${r.verified?"Tasdiqlangan":"Verifikatsiya kutilmoqda"}</span></td></tr>`).join("")}
+  </tbody></table></div><p class="note" style="margin-top:10px">SEE — t CO₂e / t mahsulot. Milliy narx: ${fmt(S.params.natRate)} so‘m/t CO₂e, ${fmt(S.params.eurRate)} so‘m/€ kursida. Verifikatsiya moduli (M6) keyingi bosqichda ulanadi.</p>`:`<div class="empty">${Y}-yil uchun ma’lumot yo‘q. Yilni “Parametrlar”da o‘zgartiring yoki ma’lumot kiriting.</div>`}</section></div>`;
+}
+async function downloadCsv(){
+  const Y=S.params.year, rows=reportRows(Y);
+  const head=["Inshoot","Eksportyor","STIR","Tarmoq","Mahsulot","CN","Yil","Davr","Mahsulot_t","Togridan_tCO2e","Bilvosita_tCO2e","Prekursor_tCO2e","SEE_togridan","SEE_jami","YeIga_eksport_t","CBAM_sertifikat","CBAM_sof_EUR","Milliy_narx_EUR_t","Milliy_tolov_som"];
+  const q=v=>`"${String(v??"").replace(/"/g,'""')}"`;
+  const lines=[head.join(";")].concat(rows.map(({inst,r,c})=>[inst.name,inst.exporter,inst.stir,SECTORS[inst.sector].n,inst.product,inst.cn,r.year,r.q,c.output,c.direct.toFixed(2),c.indirect.toFixed(2),c.precursors.toFixed(2),c.seeDirect.toFixed(5),c.see.toFixed(5),c.M,c.certs.toFixed(2),c.net.toFixed(2),(S.params.natRate/S.params.eurRate).toFixed(3),Math.round(c.natTax)].map(q).join(";")));
+  try{ await S.downloads.save({filename:`UzCarbon_CBAM_${Y}.csv`, data:"﻿"+lines.join("\r\n")}); toast("Fayl saqlandi"); }
+  catch(e){ if(e.code!=="declined") toast("Yuklab bo‘lmadi: "+(e.message||e.code)); }
+}
+
+/* ---- Parametrlar ---- */
+function vSettings(){
+  const P=S.params; const dis=S.canWrite?"":"disabled";
+  const f=(id,l,u,v,step="any")=>`<label>${l} <em>${u}</em><input id="${id}" type="number" step="${step}" value="${v}" ${dis}></label>`;
+  return `<div class="view"><div class="head"><div><h1>Parametrlar</h1><p class="sub">Uslubiyot ma’lumotnomasi (FT-3.5, FT-4.1). Barcha hisoblar shu qiymatlar bilan bajariladi. <b>Standart qiymatlar va benchmarklar taxminiy</b> — Yevropa Komissiyasining rasmiy jadvallari bilan yangilang.</p></div></div>
+  ${roNote()}
+  <form id="parForm" class="panel">
+    <fieldset><legend>Narxlar va kurslar</legend><div class="fields">
+      <label>Hisobot yili<select id="p_year" ${dis}>${[2025,2026,2027,2028,2029,2030].map(y=>`<option ${y===P.year?"selected":""}>${y}</option>`).join("")}</select></label>
+      ${f("p_ets","EU ETS / CBAM sertifikat narxi","€/t CO₂e",P.etsPrice)}
+      ${f("p_eur","Yevro kursi","so‘m/€",P.eurRate)}
+      ${f("p_nat","Milliy uglerod stavkasi","so‘m/t CO₂e",P.natRate)}
+      ${f("p_cov","Milliy narx qamrovi","%",P.natCoverage)}
+      ${f("p_grid","Tarmoq emissiya koeffitsiyenti","t CO₂/MVt·soat",P.gridEf)}
+      ${f("p_mark","Standart qiymat ustamasi","%",P.markup)}
+    </div></fieldset>
+    <fieldset><legend>Tarmoqlar: standart SEE va EU ETS benchmark (t CO₂e/t)</legend><div class="fields">
+      ${Object.entries(SECTORS).map(([k,v])=>f("p_def_"+k,v.n+": standart SEE","",P.sec[k].defSee)+f("p_bm_"+k,v.n+": benchmark",k==="cement"?"t/t klinker":"",P.sec[k].bm)).join("")}
+    </div></fieldset>
+    <fieldset><legend>Bepul kvotalar saqlanadigan ulush (CBAM omili), %</legend><div class="fields">
+      ${Object.keys(P.cf).map(y=>f("p_cf_"+y,y+"-yil","%",P.cf[y])).join("")}
+    </div></fieldset>
+    ${S.canWrite?`<div class="row"><button class="btn" type="submit">Parametrlarni saqlash</button><button class="btn ghost" type="button" data-act="pReset">Boshlang‘ich qiymatlar</button><span class="note" id="parMsg"></span></div>`:""}
+    <p class="note">Milliy stavka boshlang‘ich qiymati: 2026-yildagi bazaviy hisoblash miqdorining (412 000 so‘m) 10 foizi — Soliq kodeksiga taklif etilgan uglerod solig‘i loyihasiga muvofiq. Yoqilg‘i koeffitsiyentlari: IPCC 2006 (tabiiy gaz 56,1; qo‘ng‘ir ko‘mir 101; toshko‘mir 94,6; mazut 77,4; dizel 74,1; koks 107 t CO₂/TJ).</p>
+  </form></div>`;
+}
+function readParams(){
+  const v=id=>num($("#"+id).value); const P=structuredClone(S.params);
+  P.year=+$("#p_year").value; P.etsPrice=v("p_ets"); P.eurRate=v("p_eur")||1; P.natRate=v("p_nat"); P.natCoverage=Math.min(100,v("p_cov")); P.gridEf=v("p_grid"); P.markup=v("p_mark");
+  Object.keys(SECTORS).forEach(k=>{ P.sec[k]={defSee:v("p_def_"+k), bm:v("p_bm_"+k)}; });
+  Object.keys(P.cf).forEach(y=>{ P.cf[y]=v("p_cf_"+y); });
+  return P;
+}
+async function saveParams(P){
+  if(S.db){ try{ P = mergeParams(await api("PUT", "/api/params", P)); }catch(e){ toast("Saqlanmadi: "+e.message); return; } }
+  S.params=P; toast("Parametrlar saqlandi"); render();
+}
+
+/* ============ Hodisalar ============ */
+document.addEventListener("click", async e=>{
+  const b=e.target.closest("button"); if(!b) return;
+  if(b.dataset.v){ S.view=b.dataset.v; render(); $("#main").scrollTo?.(0,0); window.scrollTo(0,0); return; }
+  if(b.dataset.go){ S.view=b.dataset.go; render(); return; }
+  if(b.dataset.q){ askChat(b.dataset.q); return; }
+  const a=b.dataset.act, id=b.dataset.id;
+  if(a==="idel"){ const w=b.closest("[data-wrap]"); w.innerHTML=`O‘chirilsinmi? (davrlar ham) <button class="btn danger small" data-act="idel2" data-id="${id}">Ha</button><button class="btn ghost small" data-act="cancel">Yo‘q</button>`; return; }
+  if(a==="idel2"){ for(const r of S.recs.filter(r=>r.instId===id)) await del("records",r.id); await del("installations",id); toast("Inshoot o‘chirildi"); return; }
+  if(a==="rdel"){ const w=b.closest("[data-wrap]"); w.innerHTML=`O‘chirilsinmi? <button class="btn danger small" data-act="rdel2" data-id="${id}">Ha</button><button class="btn ghost small" data-act="cancel">Yo‘q</button>`; return; }
+  if(a==="rdel2"){ await del("records",id); toast("Davr o‘chirildi"); return; }
+  if(a==="cancel"){ renderRecTable(); renderInstTable(); return; }
+  if(a==="redit"){ const r=S.recs.find(x=>x.id===id); if(r){ fillRecForm(r); $("#recForm").scrollIntoView({behavior:"smooth",block:"start"}); } return; }
+  if(a==="exdel"){ const w=$("#exDelWrap"); w.innerHTML=`Barcha namunalar o‘chirilsinmi? <button class="btn danger small" data-act="exdel2">Ha</button><button class="btn ghost small" data-act="exno">Yo‘q</button>`; return; }
+  if(a==="exno"){ render(); return; }
+  if(a==="exdel2"){ const ex=S.inst.filter(i=>i.example).map(i=>i.id); for(const r of S.recs.filter(r=>ex.includes(r.instId))) await del("records",r.id); for(const i of ex) await del("installations",i); toast("Namunalar o‘chirildi"); return; }
+  if(a==="airec"){ aiRecommend($("#aiInst").value); return; }
+  if(a==="csv"){ downloadCsv(); return; }
+  if(a==="pReset"){ saveParams(structuredClone(DEFAULT_PARAMS)); return; }
+});
+document.addEventListener("change", e=>{
+  const t=e.target;
+  if(t.id==="yearSel"){ S.params.year=+t.value; render(); }
+  if(t.id==="r_inst"){ S.selInst=t.value; const m=$("#main"); m.innerHTML=vData(); renderRecTable(); }
+  if(t.id==="cInst"){ S.selInst=t.value; S.selRec=null; render(); }
+  if(t.id==="cRec"){ S.selRec=t.value; render(); }
+  if(t.id==="aiInst"){ $("#aiRecOut").innerHTML=renderAiRec(); }
+});
+document.addEventListener("input", e=>{ if(e.target.closest("#recForm")) updatePreview(); });
+document.addEventListener("submit", async e=>{
+  e.preventDefault(); const f=e.target;
+  if(f.id==="instForm"){
+    const g=id=>$("#"+id).value.trim(); const msg=$("#instMsg");
+    if(!g("f_name")||!g("f_exp")){ msg.textContent="Inshoot va eksportyor nomini kiriting."; return; }
+    if(g("f_stir") && !/^\d{9}$/.test(g("f_stir"))){ msg.textContent="STIR 9 ta raqamdan iborat bo‘lishi kerak."; return; }
+    if(g("f_cn") && !/^\d{8}$/.test(g("f_cn").replace(/\s/g,""))){ msg.textContent="CN kodi 8 ta raqam bo‘lishi kerak."; return; }
+    const sec=$("#f_sec").value; const id=newId("inst");
+    const ok=await save("installations",id,{name:g("f_name"),exporter:g("f_exp"),stir:g("f_stir"),sector:sec,product:g("f_prod")||SECTORS[sec].product,cn:g("f_cn").replace(/\s/g,""),region:$("#f_reg").value,createdAt:new Date().toISOString()});
+    if(ok){ f.reset(); msg.textContent=""; S.selInst=id; toast("Inshoot reyestrga qo‘shildi"); }
+  }
+  if(f.id==="recForm"){
+    const r=readRecForm(); const msg=$("#recMsg");
+    if(!(r.output>0)){ msg.textContent="Ishlab chiqarilgan mahsulot hajmini kiriting."; return; }
+    if(!Object.keys(r.fuels).length && !r.electricity){ msg.textContent="Kamida bitta yoqilg‘i yoki elektr energiyasi sarfini kiriting."; return; }
+    const id=`${r.instId}_${r.year}_${r.q}`; const prev=S.recs.find(x=>x.id===id);
+    r.createdAt=new Date().toISOString(); if(prev?.example) r.example=true;
+    const ok=await save("records",id,r);
+    if(ok){ msg.textContent=""; toast(prev?"Davr yangilandi":"Davr saqlandi"); const issues=analyze().filter(a=>a.r.id===id||(`${a.r.instId}_${a.r.year}_${a.r.q}`===id)); if(issues.length) toast(`Saqlandi. Avtomatik tahlil ${issues.length} ta e’tibor talab qiladigan holat topdi.`); }
+  }
+  if(f.id==="chatForm"){ const v=$("#chatIn").value; $("#chatIn").value=""; askChat(v); }
+  if(f.id==="parForm"){ saveParams(readParams()); }
+});
+boot();

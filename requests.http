@@ -1,0 +1,16 @@
+### VS Code "REST Client" kengaytmasi bilan API ni sinash (server ishlab turgan bo'lishi kerak)
+
+### Platforma holati
+GET http://localhost:3000/api/state
+
+### Yangi inshoot qo'shish
+PUT http://localhost:3000/api/installations/my-plant-1
+Content-Type: application/json
+
+{ "name": "Klinker liniyasi №1", "exporter": "Mening korxonam AJ", "stir": "123456789", "sector": "cement", "product": "Portlandsement", "cn": "25232900", "region": "Jizzax" }
+
+### Hisobot davri kiritish
+PUT http://localhost:3000/api/records/my-plant-1_2026_Q1
+Content-Type: application/json
+
+{ "instId": "my-plant-1", "year": 2026, "q": "Q1", "fuels": { "gas": 30000 }, "clinker": 300000, "electricity": 40000, "output": 400000, "exportEU": 15000 }
