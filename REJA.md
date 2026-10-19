@@ -587,8 +587,20 @@ Holat sanasi: 2026-10-19 (v0.2, 3-commit). Testlar: 38/38.
 
 Kompyuterda PostgreSQL va Docker yo'qligi sababli v0.2 tashqi kutubxonalarsiz yozildi: Node.js (CommonJS) + o'rnatilgan `node:sqlite`, interfeys — kutubxonasiz ES-modullar. Barcha SQL bitta qatlamda (`src/db/db.js`) va PostgreSQL ga ko'chirishga mos; hisob yadrosi toza funksiyalar sifatida ajratilgan. 2.2-bo'limdagi maqsadli stekka (PostgreSQL, TypeScript, Python SI xizmati, Kubernetes) o'tish — keyingi bosqich.
 
+### 15.1-a. Mustaqil audit topgan nuqsonlar (2026-10-19)
+
+TZ-2 bo'limlari bo'yicha o'tkazilgan ko'p agentli audit (to'liq natija: `docs/audit-tz2-2026-10-19.json`) ikkita jiddiy nuqsonni tasdiqladi. **Ularni keyingi ishda birinchi navbatda tuzatish kerak.**
+
+| # | Nuqson | Qayerda | Nima bo'ladi | Tuzatish |
+|---|---|---|---|---|
+| D1 | Tasdiqlanmagan soliq to'lovi CBAM chegirmasi sifatida hisobga olinadi | `src/services/tax.js` (`effective`, `declaration`), `src/docs/package.js`, `src/api/admin.js` — hamma joyda `status IN ('paid','confirmed')` | Eksportyorning o'zi kiritgan, Soliq qo'mitasi tasdiqlamagan to'lov P_eff ni oshiradi va CBAM to'lovini nolga tushiradi; muhrlangan paketda 9-modda tasdiqnomasi sifatida chiqadi | Chegirmaga faqat `status = 'confirmed'` kirsin; tasdiqlanmagan summa alohida "tasdiq kutilmoqda, chegirmaga kirmaydi" qatorida ko'rsatilsin |
+| D2 | Verifikatsiyadan o'tgan haqiqiy ma'lumot hujjatlar paketiga tushmaydi | `src/api/verification.js` faqat `calc_results.status` ni yangilaydi; `officialSee` va `package.build` saqlangan natijadagi eski `selection` ni o'qiydi | Verifikatsiya tugagach ham paketda standart qiymat qoladi (sement 2025: 1,41 o'rniga 0,618 bo'lishi kerak edi) — eksportyor haqiqiy ma'lumot foydasini yo'qotadi | Verifikatsiya yakunlanganda natijani qayta hisoblab saqlash yoki `officialSee`/`package.build` da `verified` holatini hisobga olib `selection` ni qayta aniqlash |
+
+Audit shuningdek bir qator kichikroq kamchiliklarni aniqladi: Statistika agentligi roli va YaIM ma'lumoti yo'qligi (NDC ko'rsatkichi hisoblanmaydi), standart qiymatli prekursorda to'g'ridan-to'g'ri va bilvosita ulushning ajratilmasligi. Audit 17 ta agentdan 11 tasi bilan yakunlandi (sessiya limiti), shuning uchun 5, 6, 8, 9 va 10-bo'limlar bo'yicha tekshiruv to'liq emas.
+
 ### 15.2. Keyingi ustuvor ishlar
 
+0. **D1 va D2 nuqsonlarini tuzatish** (15.1-a) va ularni testlar bilan mustahkamlash.
 1. Q1: TIF TN jadvali (xlsx) — import va ikkinchi shaxs tasdig'i; har bir tovar guruhiga ≥ 3 Excel etaloni (qabul sinovi 1–2).
 2. QR-kod (M7.6), EI Communication template ning rasmiy tuzilmasi (M3.2, M7.5), O3CI XSD (I1).
 3. OneID / ERI (I10), Soliq va Bojxona API lari (I2, I3) — kirish berilgach.
