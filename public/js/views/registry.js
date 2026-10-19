@@ -323,10 +323,9 @@ async function detail(el, instId, S) {
         { h: "Turi", k: "type" },
         { h: "Kalibrovka sanasi", v: m => day(m.calibrationDate) },
         { h: "Noaniqlik, %", k: "uncertainty", num: true, d: 2 },
-      ], inst.meters) : pw
-        ? emptyBox("Hisoblagichlar hali ro'yxatga olinmagan. O'lchanadigan oqimlar uchun hisoblagich va uning kalibrovka sanasini qo'shing.", openBtn("meterNew", "Hisoblagich qo'shish"))
-        : emptyBox("Hisoblagichlar hali ro'yxatga olinmagan.")}
-      ${pw ? `<details id="meterNew"><summary>Hisoblagich qo'shish</summary><form id="meterForm" novalidate><div class="fields">
+      ], inst.meters) : pw ? "" : emptyBox("Hisoblagichlar hali ro'yxatga olinmagan.")}
+      ${pw ? `<details id="meterNew"${inst.meters.length ? "" : " open"}><summary>Hisoblagich qo'shish</summary>
+        ${inst.meters.length ? "" : `<p class="note" style="margin-top:-4px">Hisoblagichlar hali ro'yxatga olinmagan. O'lchanadigan oqimlar uchun hisoblagich va uning kalibrovka sanasini kiriting.</p>`}<form id="meterForm" novalidate><div class="fields">
         <label>Seriya raqami <em>majburiy</em><input name="serial" required autocomplete="off"></label>
         <label>Turi <em>masalan, gaz hisoblagichi</em><input name="type"></label>
         <label>Kalibrovka sanasi<input name="calibrationDate" type="date"></label>

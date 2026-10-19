@@ -5,7 +5,9 @@ import { route } from "../app.js";
 
 export default async function (el, _p, S) {
   const all = S.can("users.manage_all");
-  const [users, roles, ops, vers, imps] = await Promise.all([get("/api/users"), get("/api/roles"), all ? get("/api/operators").catch(() => []) : Promise.resolve([]), get("/api/verifiers"), all ? get("/api/importers").catch(() => []) : Promise.resolve([])]);
+  const [users, roles, dir] = await Promise.all([get("/api/users"), get("/api/roles"),
+    all ? get("/api/directory").catch(() => ({})) : Promise.resolve({})]);
+  const ops = dir.operators || [], imps = dir.importers || [], vers = dir.verifiers || await get("/api/verifiers").catch(() => []);
   const roleOpts = roles.filter(r => all || ["exporter_admin", "exporter_specialist"].includes(r.key));
   el.innerHTML = `<div class="view">
     <div class="head"><div><h1>Foydalanuvchilar</h1><p class="sub">Har bir foydalanuvchi faqat o'z roli uchun ochiq bo'limlarni ko'radi. Administratorlar, verifikator va vazirlik xodimlari uchun ikki bosqichli tasdiq majburiy.</p></div></div>

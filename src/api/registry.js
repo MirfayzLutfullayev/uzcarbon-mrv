@@ -286,6 +286,13 @@ function register(app) {
     return camel(db.get("SELECT * FROM importers WHERE id = ?", id));
   });
 
+  /* Foydalanuvchilarni boshqarish uchun yengil ma'lumotnoma: faqat nomlar, emissiya ma'lumotlarisiz. */
+  app.get("/api/directory", { perm: "users.manage_all" }, () => ({
+    operators: db.all("SELECT id, name, stir FROM operators ORDER BY name").map(r => camel(r)),
+    importers: db.all("SELECT id, name, eori FROM importers ORDER BY name").map(r => camel(r)),
+    verifiers: db.all("SELECT id, name FROM verifiers ORDER BY name").map(r => camel(r)),
+  }));
+
   /* ---------- Verifikatorlar reyestri (M8.1) ---------- */
   const verifierSchema = { name: { t: "str", req: true, max: 200 }, accreditationNo: { t: "str", req: true, max: 60, label: "Akkreditatsiya raqami" },
     accreditedUntil: { t: "date", req: true, label: "Akkreditatsiya muddati" }, sectors: { t: "str", max: 200 } };
