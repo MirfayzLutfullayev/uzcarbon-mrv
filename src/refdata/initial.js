@@ -7,7 +7,9 @@
 "use strict";
 
 const TZ2 = "TZ-2 (16.10.2026)";
-const VALID_FROM = "2026-01-01";
+// Boshlang'ich qiymatlar o'tgan yillar (masalan, 2025 bazaviy yili) hisobi uchun ham amal qiladi.
+// Yilga bog'liq parametrlar (CF_t, mark-up, stavka) kalit nomida yil bilan alohida saqlanadi.
+const VALID_FROM = "2020-01-01";
 
 function entries() {
   const out = [];

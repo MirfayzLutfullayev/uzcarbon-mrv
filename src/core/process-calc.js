@@ -69,6 +69,7 @@ function monthlySeries(stream, activity) {
  * @param {boolean} [p.verified]  shu jarayon-yil natijasi verifikatsiyadan o'tganmi
  * @param {(processId:string, visited:Set<string>)=>{seeDir:number, seeInd:number, name?:string}} [p.resolvePrecursor]
  * @param {Set<string>} [p.visited]
+ * @param {number[]} [p.months] hisob davri oylari (berilmasa — butun yil)
  */
 function calculateProcess(p) {
   const { process, streams, activity, year, ref } = p;
@@ -87,8 +88,12 @@ function calculateProcess(p) {
   const mbIn = [], mbOut = [], precursors = [];
   let monthsMissing = 0;
 
+  // Davr cheklovi (masalan, chorak uchun soliq deklaratsiyasi): davrdan tashqaridagi oylar nol, to'ldirilmaydi.
+  const period = Array.isArray(p.months) && p.months.length ? new Set(p.months) : null;
+
   for (const s of streams.filter(x => x.active !== false && x.active !== 0)) {
     const ser = monthlySeries(s, activity);
+    if (period) for (let i = 0; i < 12; i++) if (!period.has(i + 1)) { ser.values[i] = 0; ser.extras[i] = {}; ser.statuses[i] = null; }
     const fill = E.conservativeFill(ser.values, FILL_MIN.has(s.type) ? "min" : "max");
     if (!fill.known) {
       warnings.push(`"${s.name}" oqimi uchun ${year}-yilda ma'lumot kiritilmagan.`);
