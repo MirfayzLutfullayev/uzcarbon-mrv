@@ -3,6 +3,7 @@
 > Tuzilgan sana: 2026-10-19. Bu hujjat ikkala texnik topshiriq, taqdimot va mavjud MVP kodini bitta rejaga birlashtiradi.
 > Har bir talabning ID si bor va 15-bo'limdagi nazorat ro'yxatida qaysi bosqichda bajarilishi ko'rsatilgan.
 > Kod yozishda shu hujjat asosiy yo'riqnoma bo'ladi. Talab bajarilganda 15-bo'limda `[x]` qo'yiladi.
+> **Joriy holat (2026-10-19, v0.2):** R0–R4 va R5–R16 ning asosiy qismi yozildi; har bir talab holati va yetishmayotgan qismlar — 15-bo'limda.
 
 ---
 
@@ -539,44 +540,58 @@ TZ bosqichlariga moslik: **TZ-2 2-bosqich (MVP va pilot, 2027 fev–iyun) = R0�
 
 ## 15. Nazorat ro'yxati (izlanuvchanlik matritsasi)
 
-Bajarilganda `[x]`. Ustunlar: talab → bosqich.
+Belgilar: `[x]` — ishlaydi (testlangan yoki interfeysda tekshirilgan); `[~]` — qisman (izohda nima yetishmasligi); `[ ]` — hali yo'q.
+Holat sanasi: 2026-10-19 (v0.2, 3-commit). Testlar: 38/38.
 
-**Hisob yadrosi va narx (R2–R3, R16)**
-- [ ] F-5.2 · [ ] F-5.3a · [ ] F-5.3b · [ ] F-5.3c (+CKD) · [ ] F-5.3d · [ ] F-5.4 · [ ] F-5.5a · [ ] F-5.5b · [ ] F-5.6a · [ ] F-5.6b · [ ] F-5.6c · [ ] F-5.6d (rekursiv) · [ ] F-5.6e · [ ] F-5.7 · [ ] F-5.8 · [ ] F-5.9
-- [ ] F-6.1 · [ ] F-6.2a · [ ] F-6.2b · [ ] F-6.2c · [ ] F-6.2d · [ ] F-6.3a · [ ] F-6.3b · [ ] F-6.3c · [ ] F-6.4 · [ ] F-6.5a · [ ] F-6.5b · [ ] F-6.5c · [ ] F-6.6 · [ ] F-6.7
-- [ ] Etalonlar: A.1 · A.2 · A.3 · A.4 · 5.7 misoli · dizel · AI-80 · 285 kod · har bir guruhga ≥ 3 (sement, o'g'it, Al, H₂, po'lat)
+**Hisob yadrosi va narx (R2–R3, R16)** — `src/core`, `tests/acceptance.test.js`, `tests/core.test.js`
+- [x] F-5.2 · [x] F-5.3a · [x] F-5.3b · [x] F-5.3c (+CKD "qo'lda" oqim orqali) · [x] F-5.3d · [x] F-5.4 · [x] F-5.5a · [x] F-5.5b · [x] F-5.6a · [x] F-5.6b · [x] F-5.6c · [x] F-5.6d (rekursiv, sikl aniqlanadi) · [x] F-5.6e · [x] F-5.7 · [x] F-5.8 · [x] F-5.9
+- [x] F-6.1 · [x] F-6.2a · [x] F-6.2b · [x] F-6.2c · [x] F-6.2d · [x] F-6.3a · [x] F-6.3b · [x] F-6.3c · [x] F-6.4 · [x] F-6.5a · [x] F-6.5b · [x] F-6.5c · [x] F-6.6 · [x] F-6.7
+- Etalonlar: [x] A.1 · [x] A.2 · [x] A.3 · [x] A.4 · [x] 5.7 misoli · [x] dizel · [x] AI-80 · [x] Ilova B · [~] 285 kod (importer va tekshiruvi tayyor, xlsx fayl yo'q — Q1) · [ ] har bir guruhga ≥ 3 qo'lda Excel etaloni
 
 **Modullar**
-- M1 (R4–R5): [ ] 1.1 · [ ] 1.2 · [ ] 1.3 · [ ] 1.4 · [ ] 1.5 · [ ] 1.6 · [ ] 1.7 · [ ] 1.8 · [ ] 1.9
-- M2 (R5): [ ] 2.1 · [ ] 2.2 · [ ] 2.3 · [ ] 2.4
-- M3 (R6, R8, R12): [ ] 3.1 · [ ] 3.2 · [ ] 3.3 · [ ] 3.4 · [ ] 3.5 · [ ] 3.6 · [ ] 3.7 · [ ] 3.8 · [ ] 3.9 · [ ] 3.10 · [ ] 3.11
-- M4 (R2): [ ] 4.1 · [ ] 4.2 · [ ] 4.3 · [ ] 4.4 · [ ] 4.5 · [ ] 4.6 · [ ] 4.7 · [ ] 4.8 · [ ] 4.9
-- M5 (R3, R11): [ ] 5.1 · [ ] 5.2 · [ ] 5.3 · [ ] 5.4 · [ ] 5.5 · [ ] 5.6 · [ ] 5.7 · [ ] 5.8
-- M6 (R3, R13): [ ] 6.1 · [ ] 6.2 · [ ] 6.3 · [ ] 6.4 · [ ] 6.5 · [ ] 6.6 · [ ] 6.7 · [ ] 6.8
-- M7 (R10): [ ] 7.1 · [ ] 7.2 · [ ] 7.3 · [ ] 7.4 · [ ] 7.5 · [ ] 7.6 · [ ] 7.7 · [ ] 7.8 · [ ] 7.9 · [ ] 7.10 · [ ] 7.11
-- M8 (R9): [ ] 8.1 · [ ] 8.2 · [ ] 8.3 · [ ] 8.4 · [ ] 8.5
-- M9 (R7, R14): [ ] 9.1 · [ ] 9.2 · [ ] 9.3 · [ ] 9.4 · [ ] 9.5
-- M10 (R1, R4, R17): [ ] 10.1 · [ ] 10.2 · [ ] 10.3 · [ ] 10.4 · [ ] 10.5 · [ ] 10.6
-- Ssenariylar: [ ] S1 · [ ] S2 · [ ] S3 · [ ] S4
+- M1: [~] 1.1 (lokal login + TOTP; OneID yo'q) · [~] 1.2 (STIR qidiruv mock) · [x] 1.3 · [x] 1.4 · [x] 1.5 · [~] 1.6 (TIF↔CN ma'lumotnomada; alohida mahsulot katalogi yo'q) · [x] 1.7 · [x] 1.8 · [x] 1.9
+- M2: [x] 2.1 · [x] 2.2 (5 tarmoq shabloni) · [x] 2.3 · [~] 2.4 (muddat eslatmasi bor, yil boshida majburiy tasdiq tekshiruvi yo'q)
+- M3: [x] 3.1 · [~] 3.2 (o'z CSV shablonimiz; EI Communication template importi yo'q) · [x] 3.3 · [ ] 3.4 · [~] 3.5 (CEMS soatlik CSV; MQTT/OPC UA yo'q) · [x] 3.6 · [~] 3.7 (yuklash bor, AI-1 o'qish yo'q) · [x] 3.8 · [x] 3.9 · [x] 3.10 · [x] 3.11
+- M4: [x] 4.1 · [x] 4.2 · [x] 4.3 · [x] 4.4 · [x] 4.5 · [x] 4.6 · [x] 4.7 · [x] 4.8 · [~] 4.9 (≤ 30 s yuklama sinovi o'tkazilmagan; demo hisob < 1 s)
+- M5: [x] 5.1 · [~] 5.2 (yil bo'yicha stavka bor; BHM varianti hisobga ulanmagan) · [x] 5.3 · [~] 5.4 (Soliq roli qo'lda tasdiqlaydi; API yo'q) · [~] 5.5 (qaytarish summasi hisoblanadi; ariza ish oqimi yo'q) · [x] 5.6 · [x] 5.7 · [x] 5.8
+- M6: [x] 6.1 · [x] 6.2 · [x] 6.3 · [x] 6.4 · [x] 6.5 · [~] 6.6 (Markaziy bank — tugma bilan; ETS — qo'lda; jadval bo'yicha avtomatik emas) · [x] 6.7 · [x] 6.8
+- M7: [x] 7.1 · [x] 7.2 · [x] 7.3 · [~] 7.4 (O3CI ID; havola yo'q) · [~] 7.5 (soddalashtirilgan shablon + xavfsiz havola) · [~] 7.6 (xesh + mock-ERI imzo; QR-kod yo'q) · [x] 7.7 · [~] 7.8 (byulleten, eslatma, CBAM ma'lumotnomasi bor; soliq yillik hisoboti yo'q) · [ ] 7.9 · [~] 7.10 (PDF brauzer orqali, DOCX, XLSX; paket uz/ru/en) · [x] 7.11
+- M8: [x] 8.1 · [x] 8.2 · [~] 8.3 (oqim to'liq; ERI o'rniga 2FA + mock-ERI) · [~] 8.4 (video/hujjat yuklash API da; alohida bo'lim yo'q) · [x] 8.5
+- M9: [x] 9.1 · [~] 9.2 (NDC uchun YaIM ma'lumoti yo'q) · [x] 9.3 · [ ] 9.4 (xarita yo'q) · [~] 9.5 (jarayon ssenariysi va tushum prognozi; davlat darajasidagi siyosat ssenariysi yo'q)
+- M10: [x] 10.1 · [x] 10.2 · [~] 10.3 (yangi TIF kodlari sozlama orqali; yangi tovar guruhi kod o'zgarishini talab qiladi) · [x] 10.4 · [x] 10.5 · [x] 10.6 (prognozlar har so'rovda joriy ma'lumotnoma bilan hisoblanadi + bildirishnoma)
+- Ssenariylar: [x] S1 · [~] S2 (Bojxona roli/CSV; avtomatik oqim yo'q) · [~] S3 (to'lov holati qo'lda) · [x] S4
 
-**TZ-1 FT talablari → yangi joyi**
-- [ ] FT-1.1→M1.2 · [ ] FT-1.2→M1.3 · [ ] FT-1.3→M1.4 · [ ] FT-1.4→M1.6 · [ ] FT-1.5→M2.3 · [ ] FT-1.6→M1.8
-- [ ] FT-2.1→M3.1–3.3 · [ ] FT-2.2→M3.4 · [ ] FT-2.3→M3.5 · [ ] FT-2.4→M3.6 · [ ] FT-2.5→M3.7 · [ ] FT-2.6→M3.8 · [ ] FT-2.7→M3.9
-- [ ] FT-3.1/3.2→M4.1 · [ ] FT-3.3→M4.2 · [ ] FT-3.4→M4.3 · [ ] FT-3.5→M4.6, M10.1 · [ ] FT-3.6→M4.7 · [ ] FT-3.7→M4.4 · [ ] FT-3.8→M4.8
-- [ ] FT-4.1→M5.2 · [ ] FT-4.2→M5.4 · [ ] FT-4.3→M5.6 · [ ] FT-4.4→M6.5 · [ ] FT-4.5→M6.6 · [ ] FT-4.6→M6.2, M9.5
-- [ ] FT-5.1→AI-3 · [ ] FT-5.2→AI-5 · [ ] FT-5.3→AI-6 · [ ] FT-5.4→AI-1 · [ ] FT-5.5→AI-7 · [ ] FT-5.6→AI-8
-- [ ] FT-6.1→M8.1 · [ ] FT-6.2→M8.2 · [ ] FT-6.3→M8.3 · [ ] FT-6.4→M8.4 · [ ] FT-6.5→X4
-- [ ] FT-7.1→M7.5 · [ ] FT-7.2→M7.7 · [ ] FT-7.3→M5.3 · [ ] FT-7.4→M7.9 · [ ] FT-7.5→M7.10
-- [ ] FT-8.1→M9.1 · [ ] FT-8.2→M9.2 · [ ] FT-8.3→M9.4 · [ ] FT-8.4→M10.5
+**TZ-1 FT talablari → yangi joyi** (holati yuqoridagi modul bandi bilan bir xil)
+- [~] FT-1.1 · [x] FT-1.2 · [x] FT-1.3 · [~] FT-1.4 · [x] FT-1.5 · [x] FT-1.6
+- [x] FT-2.1 · [ ] FT-2.2 · [~] FT-2.3 · [x] FT-2.4 · [~] FT-2.5 · [x] FT-2.6 · [x] FT-2.7
+- [x] FT-3.1/3.2 · [x] FT-3.3 · [x] FT-3.4 · [x] FT-3.5 · [x] FT-3.6 · [x] FT-3.7 · [x] FT-3.8
+- [~] FT-4.1 · [~] FT-4.2 · [x] FT-4.3 · [x] FT-4.4 · [~] FT-4.5 · [x] FT-4.6
+- [x] FT-5.1 · [x] FT-5.2 · [~] FT-5.3 · [ ] FT-5.4 · [x] FT-5.5 · [x] FT-5.6 (uz; ru/en yo'q)
+- [x] FT-6.1 · [x] FT-6.2 · [~] FT-6.3 · [~] FT-6.4 · [x] FT-6.5
+- [~] FT-7.1 · [x] FT-7.2 · [x] FT-7.3 · [ ] FT-7.4 · [~] FT-7.5
+- [x] FT-8.1 · [~] FT-8.2 · [ ] FT-8.3 · [x] FT-8.4
 
-**SI (R8, R15):** [ ] AI-1 · [ ] AI-2 · [ ] AI-3 · [ ] AI-4 · [ ] AI-5 · [ ] AI-6 · [ ] AI-7 · [ ] AI-8 · [ ] AI-9 · [ ] modellar reyestri · [ ] drift · [ ] tushuntiriluvchanlik · [ ] mahalliylashtirish
+**SI:** [ ] AI-1 · [ ] AI-2 · [x] AI-3 (qoidalar + SPC + Isolation Forest; recall/precision ajratilgan to'plamda o'lchanmagan) · [~] AI-4 (bojxona ↔ korxona) · [x] AI-5 · [~] AI-6 (chiziqli bazaviy model, MAPE orqaga sinovi) · [x] AI-7 (kutubxona taxminiy) · [x] AI-8 (RAG, manbasiz javob yo'q) · [x] AI-9 · [x] modellar reyestri · [ ] drift · [x] tushuntiriluvchanlik (omillar) · [x] mahalliylashtirish (tashqi LLM standart o'chiq)
 
-**Integratsiyalar (R12):** [ ] I1 · [ ] I2 · [ ] I3 · [ ] I4 · [ ] I5 · [ ] I6 · [ ] I7 · [ ] I8 · [ ] I9 · [ ] I10 · [ ] I11 · [ ] I12 · [ ] I13
+**Integratsiyalar:** [~] I1 (XML) · [~] I2 (mock) · [~] I3 (rol/CSV) · [ ] I4 · [~] I5 (mock jurnal) · [~] I6 (rol orqali taklif) · [ ] I7 · [x] I8 · [~] I9 (qo'lda) · [ ] I10 · [ ] I11 · [~] I12 (REST/CSV) · [x] I13
 
-**NFR va xavfsizlik (R17):** [ ] N1 · [ ] N2 · [ ] N3 · [ ] N4 · [ ] N5 · [ ] N6 · [ ] N7 · [ ] N8 · [ ] N9 · [ ] N10 · [ ] X1 · [ ] X2 · [ ] X3 · [ ] X4 · [ ] X5 · [ ] X6 · [ ] X7 · [ ] X8
+**NFR va xavfsizlik:** [ ] N1 · [ ] N2 · [ ] N3 · [x] N4 · [x] N5 · [~] N6 · [~] N7 (adaptiv, labels/fokus; WCAG audit o'tkazilmagan) · [~] N8 (JSON/XML/CSV; OpenAPI fayli yo'q) · [x] N9 · [ ] N10 · [~] X1 (2FA; OneID/ERI yo'q) · [x] X2 · [~] X3 (TLS proksi orqali; bazada AES-256 yo'q) · [x] X4 · [~] X5 (audit + xavfsizlik hodisalari jurnali; SIEM yo'q) · [~] X6 (CSP, CSRF, validatsiya, rate-limit; SAST/SCA yo'q) · [ ] X7 · [ ] X8
 
-**Hisobot shakllari (R10–R11):** [ ] 1 · [ ] 2 · [ ] 3 · [ ] 4 · [ ] 5 · [ ] 6 · [ ] 7 · [ ] 8 · [ ] 9 · [ ] 10 · [ ] 11 · [ ] 12 · [ ] 13 · [ ] 14 · [ ] 15
+**Hisobot shakllari:** [x] 1 · [x] 2 · [~] 3 · [~] 4 · [~] 5 · [~] 6 (QR yo'q) · [x] 7 · [x] 8 · [x] 9 · [ ] 10 · [x] 11 · [~] 12 · [x] 13 · [ ] 14 · [~] 15
 
-**Texnik qarz (R0–R3):** [ ] 1.2-1 nusxa yadro · [ ] 1.2-2 raqamlar · [ ] 1.2-3 natTax/chegirma · [ ] 1.2-4 TIF defSee/mark-up · [ ] 1.2-5 klinker-benchmark · [ ] 1.2-6 versiyalash · [ ] 1.2-7 auth/audit/verified · [ ] 1.2-8 prekursor · [ ] 1.2-9 partiya · [ ] 1.2-10 AI ma'lumot oqimi · [ ] 1.2-11 formatlar/yillar
+**Texnik qarz:** [x] 1.2-1 · [x] 1.2-2 · [x] 1.2-3 · [x] 1.2-4 · [x] 1.2-5 · [x] 1.2-6 · [x] 1.2-7 · [x] 1.2-8 · [x] 1.2-9 · [x] 1.2-10 · [x] 1.2-11
 
-**Topshiriladigan hujjatlar (R18):** [ ] texnik loyiha · [ ] uslubiyot ma'lumotnomasi · [ ] OpenAPI · [ ] qo'llanmalar (rollar, uz/ru) · [ ] admin/o'rnatish · [ ] sinov dasturi va bayonnomalar · [ ] model kartalari, MLOps · [ ] xavfsizlik siyosati, tahdidlar modeli · [ ] o'quv materiallari (3 til)
+**Topshiriladigan hujjatlar:** [ ] texnik loyiha · [~] uslubiyot ma'lumotnomasi (REJA.md 4-bo'lim + `src/refdata/initial.js` manbalari) · [ ] OpenAPI · [ ] qo'llanmalar · [~] admin/o'rnatish (README) · [~] sinov dasturi (`tests/`) · [~] model kartalari (`/api/ai/models`) · [ ] xavfsizlik siyosati · [ ] o'quv materiallari
+
+### 15.1. Amalga oshirilgan stek (Q9 bo'yicha vaqtinchalik qaror)
+
+Kompyuterda PostgreSQL va Docker yo'qligi sababli v0.2 tashqi kutubxonalarsiz yozildi: Node.js (CommonJS) + o'rnatilgan `node:sqlite`, interfeys — kutubxonasiz ES-modullar. Barcha SQL bitta qatlamda (`src/db/db.js`) va PostgreSQL ga ko'chirishga mos; hisob yadrosi toza funksiyalar sifatida ajratilgan. 2.2-bo'limdagi maqsadli stekka (PostgreSQL, TypeScript, Python SI xizmati, Kubernetes) o'tish — keyingi bosqich.
+
+### 15.2. Keyingi ustuvor ishlar
+
+1. Q1: TIF TN jadvali (xlsx) — import va ikkinchi shaxs tasdig'i; har bir tovar guruhiga ≥ 3 Excel etaloni (qabul sinovi 1–2).
+2. QR-kod (M7.6), EI Communication template ning rasmiy tuzilmasi (M3.2, M7.5), O3CI XSD (I1).
+3. OneID / ERI (I10), Soliq va Bojxona API lari (I2, I3) — kirish berilgach.
+4. PostgreSQL ga ko'chirish, OpenAPI hujjati, yuklama sinovi (N2), Docker/Helm (N10), SAST/SCA (X6).
+5. AI-1 (OCR), AI-2 (TIF tasniflash), AI-6 kuchliroq modeli, drift monitoringi; AI-3 sifatini ajratilgan sintetik to'plamda o'lchash.
+6. To'liq lokalizatsiya (ru, en, uz-Cyrl lug'atlari), xarita (M9.4), BTR agregatlari (M7.9).

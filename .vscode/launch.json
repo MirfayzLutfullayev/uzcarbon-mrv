@@ -4,7 +4,7 @@
     {
       "type": "node",
       "request": "launch",
-      "name": "UzCarbon serverini ishga tushirish",
+      "name": "UZ-Carbon serverini ishga tushirish",
       "program": "${workspaceFolder}/server.js",
       "console": "integratedTerminal",
       "skipFiles": ["<node_internals>/**"]
@@ -15,6 +15,14 @@
       "name": "Testlarni ishga tushirish",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["test"],
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"]
+    },
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Eski MVP (legacy)",
+      "program": "${workspaceFolder}/legacy/server.js",
       "console": "integratedTerminal",
       "skipFiles": ["<node_internals>/**"]
     }

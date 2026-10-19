@@ -1,97 +1,96 @@
-# UzCarbon MVP
+# UZ-Carbon MRV
 
-Eksportyorlar uchun issiqxona gazlari emissiyalari, milliy uglerod narxi va Yevropa Ittifoqi CBAM xarajatini hisoblash, monitoring va tahlil platformasining ishlaydigan MVP versiyasi.
+Eksportyorlar uchun issiqxona gazlari emissiyalari, milliy uglerod narxi va Yevropa Ittifoqi CBAM to'lovini hisoblash, monitoring qilish va tahlil qilish platformasi. Asos: texnik topshiriq `TZ_UZ-Carbon_platforma16.10.2026+.docx` (TZ-2). Ishlab chiqish rejasi va har bir talab holati: [REJA.md](REJA.md).
 
-Tashqi kutubxonalar kerak emas: faqat **Node.js 18.17 yoki undan yangi** versiya.
+Tashqi kutubxonalar talab qilinmaydi: faqat **Node.js 22.13 yoki undan yangi** versiya (o'rnatilgan SQLite — `node:sqlite` ishlatiladi).
 
-## 1. Ishga tushirish (Visual Studio Code)
+## 1. Ishga tushirish
 
-1. Node.js o'rnatilganini tekshiring: terminalda `node -v` (v18.17+ bo'lishi kerak). Yo'q bo'lsa — https://nodejs.org dan LTS versiyasini o'rnating.
-2. Arxivni oching va VS Code'da **File → Open Folder…** orqali `uzcarbon` papkasini oching.
-3. Terminal oching (**Terminal → New Terminal**) va yozing:
+```
+npm run seed     # demo ma'lumotlar va foydalanuvchilar (data/uzcarbon.db qayta yaratiladi)
+npm start        # http://localhost:3000
+```
 
-   ```
-   npm start
-   ```
+VS Code'da `F5` — "UZ-Carbon serverini ishga tushirish".
 
-4. Brauzerda oching: **http://localhost:3000**
+Demo ma'lumotlar **shartli korxonalar** (sement, po'lat, azotli o'g'it) bo'yicha: 2025-yil (12 oy) va 2026-yil (yanvar–sentabr) oylik ma'lumotlari, EI ga eksport partiyalari, 2025-yil sement verifikatsiyasi, 2026-yil soliq to'lovlari. Ataylab kiritilgan holatlar: sement 2026-may gaz hisoblagichi xatosi (AI-3 topadi), po'lat 2026-mart gaz ma'lumoti yo'q (konservativ to'ldiriladi), bojxona va korxona partiyalari farqi (AI-4).
 
-Yoki `F5` tugmasini bosing — `.vscode/launch.json` dagi "UzCarbon serverini ishga tushirish" sozlamasi serverni debug rejimida ishga tushiradi (to'xtash nuqtalari — breakpoint qo'yish mumkin).
+### Demo foydalanuvchilar
 
-Birinchi ishga tushishda `data/db.json` fayli 3 ta shartli korxona va 18 ta choraklik namuna ma'lumot bilan yaratiladi. Namunalarni ilovaning o'zida "Inshootlar reyestri → Namunalarni o'chirish" tugmasi bilan o'chirish mumkin.
+Hammasi uchun parol: `Demo2026parol`
 
-### Visual Studio 2022 da
+| Login | Rol | 2FA |
+|---|---|---|
+| `sement`, `metall`, `kimyo` | Eksportyor mutaxassisi | — |
+| `sement_admin`, `metall_admin`, `kimyo_admin` | Eksportyor administratori | ha |
+| `verifikator` | Verifikator | ha |
+| `importyor` | Xorijiy importyor | — |
+| `metod1`, `metod2` | Uslubiyot administratori (ikki shaxs qoidasini sinash uchun ikkita) | ha |
+| `imv` | IMV (DNA, reestr) | ha |
+| `soliq`, `ekologiya`, `bojxona`, `energetika`, `tahlilchi` | Davlat organlari | — |
+| `admin` | Tizim administratori | ha |
 
-**File → Open → Folder…** orqali `uzcarbon` papkasini oching ("Node.js development" komponenti o'rnatilgan bo'lishi kerak). `server.js` ni ishga tushiriladigan fayl sifatida tanlang yoki Developer PowerShell'da `npm start` ni bajaring.
+2FA talab qilinadigan demo foydalanuvchilar uchun joriy kod: `npm run totp -- <login>` (faqat ishlab chiqish muhitida). Haqiqiy foydalanuvchi birinchi kirishda autentifikator ilovasini sozlaydi.
 
-## 2. AI-yordamchini yoqish (ixtiyoriy)
-
-1. `.env.example` faylidan nusxa olib, `.env` deb nomlang.
-2. `ANTHROPIC_API_KEY=` qatoriga Anthropic API kalitini yozing (https://console.anthropic.com).
-3. Serverni qayta ishga tushiring.
-
-Kalitsiz ham hisob-kitob, anomaliyalarni aniqlash, prognoz va hisobotlar to'liq ishlaydi; faqat "AI tahlil" bo'limidagi chat va dekarbonizatsiya tavsiyalari o'chiq bo'ladi. API kaliti faqat serverda saqlanadi va brauzerga uzatilmaydi.
-
-## 3. Buyruqlar
+## 2. Buyruqlar
 
 | Buyruq | Vazifasi |
-| --- | --- |
-| `npm start` | Serverni ishga tushirish (http://localhost:3000) |
-| `npm run dev` | Kod o'zgarganda server avtomatik qayta yuklanadi |
-| `npm test` | Hisoblash yadrosi va API testlari (14 ta) |
-| `npm run seed` | `data/db.json` ni namuna ma'lumotlar bilan **almashtirish** |
+|---|---|
+| `npm start` | Serverni ishga tushirish |
+| `npm run dev` | Kod o'zgarganda avtomatik qayta yuklash |
+| `npm test` | 38 ta test: TZ-2 Ilova A etalonlari, formulalar, API va xavfsizlik, SI, hujjat formatlari |
+| `npm run seed` | Demo bazani qayta yaratish |
+| `npm run totp -- <login>` | Demo foydalanuvchining 2FA kodi |
+| `npm run legacy` | Eski MVP (v0.1) — `legacy/` papkasida |
 
-Portni o'zgartirish: `.env` da `PORT=8080`.
+## 3. Sozlamalar (`.env`)
 
-## 4. Loyiha tuzilishi
+`.env.example` dan nusxa oling. Asosiylari: `PORT`, `MFA_ENFORCE` (2FA majburiyligi, standart 1), `SESSION_TTL_HOURS`, `SECURE_COOKIES` (HTTPS orqasida 1), `PUBLIC_URL` (ulashish havolalari uchun), `AI_EXTERNAL_ALLOWED` va `ANTHROPIC_API_KEY` (normativ yordamchi uchun tashqi LLM — TZ talabiga ko'ra faqat buyurtmachining yozma roziligi bilan; standart holatda o'chiq va ma'lumot tashqariga chiqmaydi).
+
+## 4. Tuzilma
 
 ```
-uzcarbon/
-├── server.js            HTTP server, REST API, fayl asosidagi ombor, AI proksi
-├── public/
-│   ├── index.html       Ilova sahifasi
-│   ├── css/style.css    Dizayn (yorug' va qorong'i mavzu)
-│   └── js/
-│       ├── calc.js      Hisoblash yadrosi: emissiyalar, SEE, CBAM, anomaliyalar, prognoz
-│       └── app.js       Foydalanuvchi interfeysi
-├── data/
-│   ├── seed.json        Namuna ma'lumotlar
-│   └── db.json          Ishchi ma'lumotlar (avtomatik yaratiladi, gitga kirmaydi)
-├── scripts/seed.js      Namunalarni qayta yuklash
-├── tests/               node:test testlari
-├── requests.http        API so'rov namunalari (VS Code "REST Client" kengaytmasi)
-└── .vscode/             Ishga tushirish va muharrir sozlamalari
+server.js              kirish nuqtasi
+src/core/              hisob yadrosi: F-5.x emissiyalar, F-5.7 standart qiymat, F-6.x narx va CBAM, jarayon hisobi, hisob izi
+src/db/                sxema va migratsiyalar, xesh zanjirli audit izi, bitemporal ma'lumotnoma (ikki shaxs qoidasi)
+src/refdata/initial.js boshlang'ich ma'lumotnoma (har bir qiymat manbasi bilan)
+src/auth/              scrypt parol, TOTP 2FA, rollar va huquqlar
+src/http/              marshrutizator, CSRF, CSP, validatsiya
+src/services/          kirish doirasi, hisob, soliq, CBAM, bildirishnomalar
+src/api/               M1–M10 API modullari
+src/ai/                AI-3/4/5/6 (anomaliya, moslashtirish, to'ldirish, prognoz), AI-7 MACC, AI-8 RAG, AI-9 risk
+src/docs/              ZIP, XLSX, DOCX, CSV, hujjatlar paketi (JSON, XML, HTML)
+public/                interfeys (ES-modullar, kutubxonasiz)
+scripts/               demo ma'lumotlar, TOTP yordamchisi
+tests/                 qabul va birlik testlari
+legacy/                MVP v0.1
 ```
 
-## 5. API
+## 5. Asosiy API
+
+Barcha holat o'zgartiruvchi so'rovlar `X-Uzc: 1` sarlavhasini talab qiladi (CSRF himoyasi); sessiya — `HttpOnly; SameSite=Strict` cookie.
 
 | Usul | Manzil | Tavsif |
-| --- | --- | --- |
-| GET | `/api/state` | Barcha inshootlar, davrlar, parametrlar |
-| PUT | `/api/installations/:id` | Inshoot qo'shish yoki yangilash |
-| DELETE | `/api/installations/:id` | Inshootni (va uning davrlarini) o'chirish |
-| PUT | `/api/records/:id` | Hisobot davrini saqlash (`id` = `instId_yil_davr`) |
-| DELETE | `/api/records/:id` | Davrni o'chirish |
-| PUT | `/api/params` | Uslubiyot parametrlarini saqlash |
-| POST | `/api/ai/chat` | AI-yordamchi (`{messages, json?}`) |
+|---|---|---|
+| POST | `/api/auth/login`, `/api/auth/mfa` | Kirish va 2FA |
+| GET/POST/PUT | `/api/installations`, `/api/processes`, `/api/streams` | Reyestr va monitoring rejasi |
+| GET/PUT | `/api/processes/:id/activity?year=` | Oylik ma'lumot (CSV: `.../activity/import`, CEMS: `/api/streams/:id/cems`) |
+| GET | `/api/processes/:id/calc?year=` | Jonli hisob, hisob izi, anomaliyalar |
+| POST | `/api/processes/:id/results`, `/api/results/:id/submit` | Natijani versiya sifatida saqlash va topshirish |
+| GET | `/api/cbam/operator/:id?year=`, `/api/cbam/scenario` | CBAM hisobi va 2026–2034 ssenariysi |
+| GET | `/api/tax/declaration`, `/api/tax/effective`, `/api/tax/rates` | Uglerod soliqi, P_eff, stavkalar |
+| POST | `/api/verifications`, `.../findings`, `.../conclude` | Verifikatsiya ish oqimi |
+| GET | `/api/reports/package?format=json\|xml\|html\|docx\|xlsx` | Eksportyor hujjatlar paketi |
+| POST | `/api/share` | Importyorga xavfsiz havola |
+| GET/POST | `/api/refdata`, `/api/refdata/proposals` | Ma'lumotnoma va tasdiq |
+| GET | `/api/audit/verify` | Audit zanjiri butunligi |
+| GET | `/api/public/summary`, `/api/public/verify?hash=` | Ochiq panel va hujjat haqiqiyligi |
 
-Server barcha kiruvchi ma'lumotlarni tekshiradi: STIR 9 raqam, CN kodi 8 raqam, sonlar manfiy emas, mahsulot hajmi > 0, inshoot reyestrda mavjud.
+## 6. Muhim cheklovlar
 
-## 6. Hisoblash uslubiyoti (qisqacha)
-
-- Yoqish emissiyalari: `sarf × quyi issiqlik qiymati × emissiya koeffitsiyenti` (IPCC 2006).
-- Sement: klinker × (CaO × 0,785 + MgO × 1,092); CaO kiritilmasa 0,52 t CO₂/t klinker.
-- Bilvosita (elektr) emissiyalar faqat sement va o'g'itlarda CBAM'ga qo'shiladi.
-- SEE = (to'g'ridan-to'g'ri + bilvosita + prekursorlar) / mahsulot.
-- CBAM sertifikatlari: `N = max(0; SEE×M − benchmark × bepul kvota ulushi × M)`.
-- CBAM sof xarajati: `N × ETS narxi − milliy uglerod narxi chegirmasi`.
-
-**Muhim:** standart qiymatlar, benchmarklar va bepul kvota ulushlari taxminiy. Rasmiy hisob uchun ularni ilovaning "Parametrlar" bo'limida Yevropa Komissiyasining amaldagi jadvallari bo'yicha yangilang. Bu MVP — sanoat ekspluatatsiyasi uchun texnik topshiriqdagi verifikatsiya moduli, davlat tizimlari bilan integratsiya, foydalanuvchi autentifikatsiyasi va haqiqiy ma'lumotlar bazasi (PostgreSQL) qo'shilishi kerak.
-
-## 7. Keyingi qadamlar (texnik topshiriq bo'yicha)
-
-- Foydalanuvchilar va rollar (OneID / ERI orqali kirish)
-- Ma'lumotlar bazasini PostgreSQL ga ko'chirish
-- Verifikatsiya moduli (M6) va audit izi
-- CBAM rasmiy XML/Excel shablonini eksport qilish
-- Soliq, bojxona va energetika tizimlari bilan integratsiya
+- **Standart qiymatlar va TIF kodlari** hozircha TZ-2 4-bo'limidagi misol qiymatlar (14 ta kod, "misol" belgisi bilan). To'liq jadval (~285 kod) `CBAM_TIF_codes_for_UZB_updated.xlsx` dan "Ma'lumotnomalar → TIF TN kodlari jadvalini import qilish" orqali yuklanadi (REJA.md Q1).
+- **Benchmarklar (BM)** ma'lumotnomada yo'q — CBAM soddalashtirilgan formula (F-6.5b) bilan hisoblanadi; BM kiritilsa aniq formula (F-6.5a) avtomatik qo'llanadi.
+- **Tarmoq EF** (0,50 t/MWh), dizel/LPG/mazut zichligi, material koeffitsientlari — taxminiy, manbada shunday belgilangan.
+- **Davlat integratsiyalari** (OneID/ERI, Soliq, Bojxona, O3CI, GFMIS, uglerod reestri) — mock yoki qo'lda rejim; Markaziy bank kursi ochiq API orqali ishlaydi. Elektron imzo — ERI ulanguncha server kaliti bilan HMAC ("mock-ERI").
+- **Ma'lumotlar bazasi** — SQLite; SQL PostgreSQL ga ko'chirishga mos yozilgan (barcha so'rovlar `src/db/db.js` orqali).
+- **Til**: interfeys o'zbek (lotin) tilida; kirill — avtomatik transliteratsiya; rus va ingliz — menyu va hujjatlar paketi.

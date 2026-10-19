@@ -12,7 +12,8 @@ const ROOT = path.join(__dirname, "..");
     if (line.trim().startsWith("#")) continue;
     const m = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/);
     if (!m) continue;
-    const val = m[2].replace(/^(['"])(.*)\1$/, "$2");
+    // Qo'shtirnoqsiz qiymatdagi qator ichidagi izoh (" # ...") olib tashlanadi
+    const val = /^['"]/.test(m[2]) ? m[2].replace(/^(['"])(.*)\1.*$/, "$2") : m[2].replace(/\s+#.*$/, "");
     if (process.env[m[1]] === undefined) process.env[m[1]] = val;
   }
 })(path.join(ROOT, ".env"));
