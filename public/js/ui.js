@@ -42,14 +42,14 @@ function niceTicks(max, n = 4) {
 /** Gorizontal ustunli grafik: items [{label, value, color?, note?}], markers [{value, label}] */
 export function hbar(items, { unit = "", d = 2, markers = [] } = {}) {
   if (!items.length) return `<div class="empty">Ma'lumot yo'q.</div>`;
-  const W = 600, rowH = 30, padL = 190, padR = 70, H = items.length * rowH + 28;
+  const W = 640, rowH = 32, padL = 236, padR = 70, H = items.length * rowH + 28;
   const max = Math.max(...items.map(x => x.value || 0), ...markers.map(m => m.value || 0)) * 1.1 || 1;
   const X = v => padL + (W - padL - padR) * v / max;
   let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Grafik">`;
   for (const t of niceTicks(max)) s += `<line x1="${X(t)}" x2="${X(t)}" y1="4" y2="${H - 22}" stroke="var(--line)"/><text x="${X(t)}" y="${H - 6}" text-anchor="middle">${fmt(t, t < 10 ? 2 : 0)}</text>`;
   items.forEach((it, i) => {
     const y = 6 + i * rowH;
-    s += `<text x="0" y="${y + 14}" style="fill:var(--ink)">${esc(it.label.length > 28 ? it.label.slice(0, 27) + "…" : it.label)}</text>`;
+    s += `<text x="0" y="${y + 14}" style="fill:var(--ink)">${esc(it.label.length > 36 ? it.label.slice(0, 35) + "…" : it.label)}<title>${esc(it.label)}</title></text>`;
     s += `<rect x="${padL}" y="${y + 2}" width="${Math.max(1, X(it.value || 0) - padL)}" height="16" rx="3" fill="${it.color || "var(--accent)"}"><title>${esc(it.label)}: ${fmt(it.value, d)} ${unit}</title></rect>`;
     s += `<text x="${X(it.value || 0) + 6}" y="${y + 14}" style="fill:var(--ink);font-family:var(--f-mono)">${fmt(it.value, d)}</text>`;
   });
@@ -62,7 +62,7 @@ export function line(series, { d = 0, unit = "" } = {}) {
   series = series.filter(s => s.points.length);
   if (!series.length) return `<div class="empty">Ma'lumot yo'q.</div>`;
   const xs = [...new Set(series.flatMap(s => s.points.map(p => p.x)))];
-  const W = 600, H = 230, pl = 56, pr = 14, pt = 10, pb = 30;
+  const W = 640, H = 240, pl = 56, pr = 30, pt = 12, pb = 30;
   const max = Math.max(...series.flatMap(s => s.points.map(p => p.y)).filter(Number.isFinite)) * 1.1 || 1;
   const X = x => pl + (W - pl - pr) * (xs.length === 1 ? 0.5 : xs.indexOf(x) / (xs.length - 1));
   const Y = v => pt + (H - pt - pb) * (1 - v / max);

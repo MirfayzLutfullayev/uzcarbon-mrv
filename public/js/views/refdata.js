@@ -6,13 +6,13 @@ import { route } from "../app.js";
 const GROUPS = [["", "Barchasi"], ["cbam.", "CBAM (CF, mark-up)"], ["tif.", "TIF TN kodlari"], ["fuel.", "Yoqilg'ilar"], ["material.", "Materiallar"], ["gwp.", "GWP"], ["tax.", "Uglerod soliqi"],
   ["fx.", "Valyuta kurslari"], ["ets.", "EU ETS"], ["grid.", "Tarmoq EF"], ["heat.", "Issiqlik"], ["clinker.", "Klinker"], ["excise.", "Aksiz"], ["ndc.", "NDC"], ["itmo.", "ITMO"], ["privacy.", "Maxfiylik"]];
 let prefix = "cbam.";
-const show = v => (typeof v === "object" && v !== null ? (v.name ? `${v.name}${v.dvStatus ? ` · ${v.dvStatus === "value" ? v.dvTot : v.dvStatus === "none" ? "−" : "jadvalda yo'q"}` : ""}${v.ncvGJ ? ` · NCV ${v.ncvGJ} GJ/${v.unit}, EF ${v.efKgGJ}` : ""}${v.ef != null && !v.ncvGJ ? ` · EF ${v.ef}` : ""}` : JSON.stringify(v)) : String(v));
+const show = v => (typeof v === "object" && v !== null ? (v.name ? `${v.name}${v.dvStatus ? `, standart qiymat ${v.dvStatus === "value" ? v.dvTot : v.dvStatus === "none" ? "belgilanmagan" : "jadvalda yo'q"}` : ""}${v.ncvGJ ? `, NCV ${v.ncvGJ} GJ/${v.unit}, EF ${v.efKgGJ}` : ""}${v.ef != null && !v.ncvGJ ? `, EF ${v.ef}` : ""}` : JSON.stringify(v)) : String(v));
 
 export default async function (el, _p, S) {
   const [rows, props] = await Promise.all([get(`/api/refdata?prefix=${encodeURIComponent(prefix)}`), get("/api/refdata/proposals")]);
   const canP = S.can("refdata.propose"), canA = S.can("refdata.approve");
   el.innerHTML = `<div class="view">
-    <div class="head"><div><h1>Ma'lumotnomalar</h1><p class="sub">Uslubiyot parametrlari kodda emas, versiyalanadigan ma'lumotnomada (FT-3.5, M10.1). Har bir o'zgarish manba hujjati va amal qilish sanasi bilan; kuchga kirishi uchun boshqa shaxs tasdig'i kerak (M10.2).</p></div>
+    <div class="head"><div><h1>Ma'lumotnomalar</h1><p class="sub">Hisob-kitobda ishlatiladigan barcha parametrlar shu yerda saqlanadi. Har bir o'zgarish manba hujjati va amal qilish sanasi bilan kiritiladi hamda boshqa administrator tomonidan tasdiqlanadi.</p></div>
       <label class="inline">Bo'lim <select id="pfx" style="width:auto">${GROUPS.map(([k, v]) => opt(k, v, prefix)).join("")}</select></label></div>
     ${props.length ? `<section class="panel"><h2>Tasdiq kutayotgan takliflar <span class="pill mid">${props.length}</span></h2>${table([
       ...(canA ? [{ h: "", v: p => `<input type="checkbox" data-pick="${p.id}" ${p.proposedBy === S.user.id ? "disabled title=\"O'z taklifingiz\"" : ""} aria-label="Tanlash">`, html: true }] : []),

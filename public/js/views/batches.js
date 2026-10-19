@@ -10,9 +10,9 @@ export default async function (el, _p, S) {
   const canW = S.can("batches.write");
   const exporter = S.user.role === "exporter_admin" || S.user.role === "exporter_specialist";
   el.innerHTML = `<div class="view">
-    <div class="head"><div><h1>Eksport partiyalari · ${y}</h1><p class="sub">Bojxona deklaratsiyasi bo'yicha netto og'irlik (m_s). Partiya TIF TN kodi bo'yicha jarayonga avtomatik bog'lanadi; EE_s = m_s · SEE_CBAM (F-5.8).</p></div></div>
+    <div class="head"><div><h1>Eksport partiyalari</h1><p class="sub">Yevropa Ittifoqiga yuborilgan partiyalar bojxona deklaratsiyasi bo'yicha qayd etiladi va TIF TN kodi orqali ishlab chiqarish jarayoniga bog'lanadi.</p></div></div>
     <section class="panel"><h2>Partiyalar <span class="pill ok">${rows.length}</span></h2>${table([
-      { h: "Deklaratsiya", v: r => `<span class="mono">${esc(r.declarationNo)}</span><br><span class="note">${esc(r.date)} · ${esc({ customs: "Bojxona", manual: "qo'lda", csv: "CSV" }[r.source] || r.source)}</span>`, html: true },
+      { h: "Deklaratsiya", v: r => `<span class="mono">${esc(r.declarationNo)}</span><span class="cell-sub">${esc(r.date)}, manba: ${esc({ customs: "Bojxona qo'mitasi", manual: "qo'lda kiritilgan", csv: "CSV import" }[r.source] || r.source)}</span>`, html: true },
       ...(exporter ? [] : [{ h: "Eksportyor", k: "operatorName" }]),
       { h: "TIF TN", v: r => `<span class="mono">${esc(r.tifCode)}</span>`, html: true }, { h: "Netto, t", k: "netT", num: true, d: 3 },
       { h: "Importyor", v: r => `${esc(r.importerName || "—")}<br><span class="note mono">${esc(r.eori || "")} ${esc(r.country || "")}</span>`, html: true },

@@ -6,11 +6,13 @@ const DICT = {
   ru: { "Monitoring paneli": "Панель мониторинга", "Reyestr": "Реестр", "Ma'lumot kiritish": "Ввод данных", "Hisob-kitob": "Расчёты", "Eksport partiyalari": "Экспортные партии",
     "CBAM kalkulyatori": "Калькулятор CBAM", "Uglerod soliqi": "Углеродный налог", "Verifikatsiya": "Верификация", "Hujjatlar paketi": "Пакет документов", "SI tahlil": "ИИ-анализ",
     "ITMO loyihalari": "Проекты ITMO", "Ma'lumotnomalar": "Справочники", "Audit jurnali": "Журнал аудита", "Foydalanuvchilar": "Пользователи", "Integratsiyalar": "Интеграции", "Profil": "Профиль",
-    "Chiqish": "Выйти", "Kirish": "Войти", "Yil": "Год", "Asosiy": "Основное", "Hisobot": "Отчётность", "Boshqaruv": "Управление", "Davlat paneli": "Государственная панель", "Ochiq panel": "Открытая панель" },
+    "Chiqish": "Выйти", "Kirish": "Войти", "Yil": "Год", "Asosiy": "Основное", "Hisobot": "Отчётность", "Boshqaruv": "Управление", "Davlat paneli": "Государственная панель", "Ochiq panel": "Открытая панель",
+    "Bosh sahifa": "Главная", "Korxona": "Предприятие", "Hisob-kitoblar": "Расчёты", "Hisobotlar": "Отчётность", "Tahlil": "Аналитика", "Emissiya hisobi": "Расчёт выбросов", "Shaxsiy kabinet": "Личный кабинет" },
   en: { "Monitoring paneli": "Dashboard", "Reyestr": "Registry", "Ma'lumot kiritish": "Data entry", "Hisob-kitob": "Calculation", "Eksport partiyalari": "Export consignments",
     "CBAM kalkulyatori": "CBAM calculator", "Uglerod soliqi": "Carbon tax", "Verifikatsiya": "Verification", "Hujjatlar paketi": "Document package", "SI tahlil": "AI analytics",
     "ITMO loyihalari": "ITMO projects", "Ma'lumotnomalar": "Reference data", "Audit jurnali": "Audit log", "Foydalanuvchilar": "Users", "Integratsiyalar": "Integrations", "Profil": "Profile",
-    "Chiqish": "Sign out", "Kirish": "Sign in", "Yil": "Year", "Asosiy": "Main", "Hisobot": "Reporting", "Boshqaruv": "Administration", "Davlat paneli": "Government dashboard", "Ochiq panel": "Public dashboard" },
+    "Chiqish": "Sign out", "Kirish": "Sign in", "Yil": "Year", "Asosiy": "Main", "Hisobot": "Reporting", "Boshqaruv": "Administration", "Davlat paneli": "Government dashboard", "Ochiq panel": "Public dashboard",
+    "Bosh sahifa": "Home", "Korxona": "Company", "Hisob-kitoblar": "Calculations", "Hisobotlar": "Reports", "Tahlil": "Analytics", "Emissiya hisobi": "Emissions", "Shaxsiy kabinet": "My account" },
 };
 
 let lang = "uz";

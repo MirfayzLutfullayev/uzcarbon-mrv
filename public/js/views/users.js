@@ -8,7 +8,7 @@ export default async function (el, _p, S) {
   const [users, roles, ops, vers, imps] = await Promise.all([get("/api/users"), get("/api/roles"), all ? get("/api/operators").catch(() => []) : Promise.resolve([]), get("/api/verifiers"), all ? get("/api/importers").catch(() => []) : Promise.resolve([])]);
   const roleOpts = roles.filter(r => all || ["exporter_admin", "exporter_specialist"].includes(r.key));
   el.innerHTML = `<div class="view">
-    <div class="head"><div><h1>Foydalanuvchilar</h1><p class="sub">Rollarga asoslangan kirish va eng kam huquq tamoyili. 2FA majburiy rollar: administratorlar, verifikator, IMV.</p></div></div>
+    <div class="head"><div><h1>Foydalanuvchilar</h1><p class="sub">Har bir foydalanuvchi faqat o'z roli uchun ochiq bo'limlarni ko'radi. Administratorlar, verifikator va vazirlik xodimlari uchun ikki bosqichli tasdiq majburiy.</p></div></div>
     <section class="panel">${table([{ h: "Login", v: u => `<span class="mono">${esc(u.login)}</span>`, html: true }, { h: "Ism", k: "name" }, { h: "Rol", k: "roleName" },
       { h: "2FA", v: u => `<span class="pill ${u.totpEnabled ? "ok" : u.mfaRequired ? "hi" : "lo"}">${u.totpEnabled ? "yoqilgan" : u.mfaRequired ? "sozlanmagan" : "ixtiyoriy"}</span>`, html: true },
       { h: "Holat", v: u => `<span class="pill ${u.disabled ? "hi" : "ok"}">${u.disabled ? "bloklangan" : "faol"}</span>`, html: true },
