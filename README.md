@@ -43,8 +43,10 @@ powershell -ExecutionPolicy Bypass -File scripts\demo-link.ps1
 Skript serverni ishga tushiradi, SSH tunnel ochadi va havolani chiqaradi (masalan `https://xxxxx.lhr.life`). Shu havolani yuboring.
 
 - Havola **oyna ochiq turgancha** ishlaydi. Oynani yopsangiz yoki Ctrl+C bossangiz, havola o'chadi.
-- Har safar ishga tushirilganda havola **yangi** bo'ladi (bepul tunnel xizmati shunday). Doimiy manzil kerak bo'lsa, localhost.run'da hisob ochib SSH kalitini qo'shing yoki Cloudflare Tunnel ishlating.
+- Har safar ishga tushirilganda havola **yangi** bo'ladi (bepul tunnel xizmati shunday).
 - Hech narsa o'rnatish shart emas: Windows tarkibidagi `ssh` ishlatiladi.
+- Skript avval `localhost.run` (22-port), u ishlamasa `pinggy.io` (443-port) orqali ulanadi. Ko'pchilik korporativ tarmoqlarda 22-port yopiq bo'lgani uchun odatda Pinggy ishlaydi: birinchi kirishda ogohlantirish sahifasi chiqadi, **"Enter site"** bosiladi (faqat bir marta), bepul tunnel esa **60 daqiqada** tugaydi — keyin skriptni qayta ishga tushiring.
+- Doimiy manzil kerak bo'lsa: `localhost.run` yoki `pinggy.io` da hisob ochib SSH kalitini qo'shing, yoki loyihani serverga joylashtiring.
 
 Ko'rib chiquvchiga yuboriladigan loginlar (parol `Demo2026parol`): `sement` — eksportyor, `tahlilchi` — davlat paneli, `importyor` — Yevropa Ittifoqi importyori, `verifikator` — verifikator (birinchi kirishda o'z autentifikator ilovasini ulaydi).
 

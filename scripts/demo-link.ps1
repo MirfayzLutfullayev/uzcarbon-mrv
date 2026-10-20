@@ -38,23 +38,28 @@ if (Test-Port 3000) {
   Write-Host " tayyor." -ForegroundColor Green
 }
 
-# 2. Global havola (SSH tunnel, localhost.run)
-Write-Host "Global havola ochilmoqda..." -NoNewline
+# 2. Global havola.
+# Avval localhost.run (22-port), ishlamasa Pinggy (443-port — ko'pchilik korporativ tarmoqlarda ochiq).
 $log = Join-Path $env:TEMP "uzcarbon-tunnel.log"
-Remove-Item $log -ErrorAction SilentlyContinue
-$ssh = Start-Process -FilePath ssh -ArgumentList @(
-  "-o", "StrictHostKeyChecking=accept-new", "-o", "ServerAliveInterval=30",
-  "-o", "ServerAliveCountMax=3", "-o", "ExitOnForwardFailure=yes",
-  "-R", "80:localhost:3000", "nokey@localhost.run"
-) -RedirectStandardOutput $log -RedirectStandardError (Join-Path $env:TEMP "uzcarbon-tunnel.err.log") `
-  -WindowStyle Hidden -PassThru
-
-$url = $null
-for ($i = 0; $i -lt 60; $i++) {
-  Start-Sleep -Milliseconds 500
-  if ($ssh.HasExited) { break }
-  $txt = Get-Content $log -Raw -ErrorAction SilentlyContinue
-  if ($txt -and $txt -match "(https://[a-z0-9\-]+\.lhr\.life)") { $url = $Matches[1]; break }
+$errLog = Join-Path $env:TEMP "uzcarbon-tunnel.err.log"
+$providers = @(
+  @{ name = "localhost.run"; args = @("-o","StrictHostKeyChecking=accept-new","-o","ConnectTimeout=15","-o","ServerAliveInterval=30","-o","ExitOnForwardFailure=yes","-R","80:localhost:3000","nokey@localhost.run"); re = "(https://[a-z0-9\-]+\.lhr\.life)"; note = "" },
+  @{ name = "pinggy.io";     args = @("-p","443","-o","StrictHostKeyChecking=accept-new","-o","ConnectTimeout=15","-o","ServerAliveInterval=30","-R","0:localhost:3000","a.pinggy.io"); re = "(https://[a-z0-9\-]+\.free\.pinggy\.net)"; note = "Birinchi kirishda Pinggy ogohlantirish sahifasi chiqadi — `"Enter site`" ni bosing. Bepul tunnel 60 daqiqada tugaydi." }
+)
+$url = $null; $ssh = $null; $note = ""
+foreach ($pr in $providers) {
+  Write-Host ("Global havola ochilmoqda ({0})..." -f $pr.name) -NoNewline
+  Remove-Item $log, $errLog -ErrorAction SilentlyContinue
+  $ssh = Start-Process -FilePath ssh -ArgumentList $pr.args -RedirectStandardOutput $log -RedirectStandardError $errLog -WindowStyle Hidden -PassThru
+  for ($i = 0; $i -lt 60; $i++) {
+    Start-Sleep -Milliseconds 500
+    if ($ssh.HasExited) { break }
+    $txt = Get-Content $log -Raw -ErrorAction SilentlyContinue
+    if ($txt -and $txt -match $pr.re) { $url = $Matches[1]; $note = $pr.note; break }
+  }
+  if ($url) { break }
+  Write-Host " ishlamadi." -ForegroundColor DarkYellow
+  if ($ssh -and -not $ssh.HasExited) { Stop-Process -Id $ssh.Id -Force -ErrorAction SilentlyContinue }
 }
 if (-not $url) {
   Write-Host " xato." -ForegroundColor Red
@@ -69,6 +74,7 @@ Write-Host ""
 Write-Host "  HAVOLA (boshqa odamga shuni yuboring):" -ForegroundColor Cyan
 Write-Host "  $url" -ForegroundColor White
 Write-Host ""
+if ($note) { Write-Host "  $note" -ForegroundColor Yellow; Write-Host "" }
 Write-Host "  Demo loginlar, parol: Demo2026parol" -ForegroundColor DarkGray
 Write-Host "    sement      eksportyor (korxona ko'rinishi)" -ForegroundColor DarkGray
 Write-Host "    tahlilchi   davlat organi paneli" -ForegroundColor DarkGray
