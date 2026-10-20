@@ -32,6 +32,24 @@ Hammasi uchun parol: `Demo2026parol`
 
 2FA talab qilinadigan demo foydalanuvchilar uchun joriy kod: `npm run totp -- <login>` (faqat ishlab chiqish muhitida). Haqiqiy foydalanuvchi birinchi kirishda autentifikator ilovasini sozlaydi.
 
+## 1.1. Boshqa odamga ko'rsatish (global havola)
+
+Ilova shu kompyuterda ishlaydi, havola esa internetdan ochiladi:
+
+```
+powershell -ExecutionPolicy Bypass -File scripts\demo-link.ps1
+```
+
+Skript serverni ishga tushiradi, SSH tunnel ochadi va havolani chiqaradi (masalan `https://xxxxx.lhr.life`). Shu havolani yuboring.
+
+- Havola **oyna ochiq turgancha** ishlaydi. Oynani yopsangiz yoki Ctrl+C bossangiz, havola o'chadi.
+- Har safar ishga tushirilganda havola **yangi** bo'ladi (bepul tunnel xizmati shunday). Doimiy manzil kerak bo'lsa, localhost.run'da hisob ochib SSH kalitini qo'shing yoki Cloudflare Tunnel ishlating.
+- Hech narsa o'rnatish shart emas: Windows tarkibidagi `ssh` ishlatiladi.
+
+Ko'rib chiquvchiga yuboriladigan loginlar (parol `Demo2026parol`): `sement` — eksportyor, `tahlilchi` — davlat paneli, `importyor` — Yevropa Ittifoqi importyori, `verifikator` — verifikator (birinchi kirishda o'z autentifikator ilovasini ulaydi).
+
+**Diqqat:** havolani bilgan har kim kirish sahifasini ko'radi, shuning uchun uni faqat kerakli odamga yuboring va ko'rsatib bo'lgach oynani yoping. Bazada faqat shartli (demo) korxonalar ma'lumoti bor.
+
 ## 2. Buyruqlar
 
 | Buyruq | Vazifasi |

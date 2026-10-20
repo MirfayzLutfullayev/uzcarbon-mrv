@@ -146,7 +146,8 @@ function buildHero(viewKey, group, item, params) {
 
 let navToken = 0;
 export async function route() {
-  if (!S.user) return;
+  // Qobiq hali chizilmagan bo'lsa (sekin ulanishda kirish tugamasdan havola bosilsa), start() o'zi chaqiradi.
+  if (!S.user || !document.getElementById("siteNav") || !document.getElementById("page")) return;
   const { view, params } = parseHash();
   const groups = visibleGroups();
   let group = groups.find(g => g.items.some(i => i.k === view));

@@ -20,7 +20,13 @@ const TYPES = { json: "application/json; charset=utf-8", xml: "application/xml; 
 
 function register(app) {
   const s = app.s, { db, config } = s;
-  const base = ctx => config.PUBLIC_URL || `http://${ctx.req.headers.host}`;
+  /** Tashqi manzil: sozlamadagi PUBLIC_URL, aks holda so'rov sarlavhalaridan (tunnel yoki teskari proksi orqasida ham to'g'ri ishlaydi). */
+  const base = ctx => {
+    if (config.PUBLIC_URL) return config.PUBLIC_URL.replace(/\/+$/, "");
+    const h = ctx.req.headers;
+    const proto = String(h["x-forwarded-proto"] || "").split(",")[0].trim() || "http";
+    return `${proto}://${h["x-forwarded-host"] || h.host}`;
+  };
 
   function issue(ctx, installationId, year, by) {
     const pkg = P.seal(P.build(s, installationId, year), config.signingKey());
