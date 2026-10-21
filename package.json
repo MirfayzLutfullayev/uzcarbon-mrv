@@ -1,4 +1,4 @@
-{
+﻿{
   "name": "uzcarbon-mrv",
   "version": "0.2.0",
   "description": "UZ-Carbon MRV — eksportyorlar uchun IG emissiyalari, milliy uglerod narxi va CBAM to'lovini hisoblash, monitoring va tahlil platformasi",
@@ -10,6 +10,7 @@
     "dev": "node --watch server.js",
     "test": "node --test \"tests/**/*.test.js\"",
     "seed": "node scripts/seed-demo.js --force",
+    "reset-mfa": "node scripts/reset-mfa.js",
     "totp": "node scripts/totp.js",
     "legacy": "node legacy/server.js",
     "test:legacy": "node --test legacy/tests/"
