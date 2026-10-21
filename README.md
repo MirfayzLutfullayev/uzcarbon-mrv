@@ -52,6 +52,22 @@ Ko'rib chiquvchiga yuboriladigan loginlar (parol `Demo2026parol`): `sement` — 
 
 **Diqqat:** havolani bilgan har kim kirish sahifasini ko'radi, shuning uchun uni faqat kerakli odamga yuboring va ko'rsatib bo'lgach oynani yoping. Bazada faqat shartli (demo) korxonalar ma'lumoti bor.
 
+## 1.2. Serverga joylashtirish (Railway)
+
+1. Railway'da **New Project → Deploy from GitHub repo** orqali shu repozitoriyni tanlang.
+2. **Variables** bo'limiga qo'shing:
+   - `DATA_DIR` = `/data`
+   - `SECURE_COOKIES` = `1`
+   - `MFA_ENFORCE` = `1`
+3. **Settings → Volumes → Add Volume**, ulanish nuqtasi (mount path): `/data`.
+4. Deploy tugagach havolani oching.
+
+`npm start` birinchi ishga tushganda bazani tekshiradi: foydalanuvchilar bo'lmasa, demo ma'lumotlarni avtomatik yuklaydi (`scripts/ensure-seed.js`). Keyingi qayta ishga tushishlarda mavjud ma'lumotlarga tegmaydi.
+
+**Volume shart:** usiz Railway har qayta joylashtirishda fayl tizimini tozalaydi va baza (kiritilgan ma'lumotlar bilan birga) yo'qoladi.
+
+`PORT` o'zgaruvchisini Railway o'zi beradi — qo'lda yozish shart emas. Tekshiruv manzili: `/api/system/health`.
+
 ## 2. Buyruqlar
 
 | Buyruq | Vazifasi |
