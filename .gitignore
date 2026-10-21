@@ -1,5 +1,8 @@
 node_modules/
 .env
+# Maxfiy kalitlar (hujjat imzosi) — hech qachon repozitoriyga tushmasin
+*.key
+data/signing.key
 data/*.db
 data/*.db-*
 data/db.json
