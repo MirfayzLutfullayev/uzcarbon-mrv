@@ -30,7 +30,11 @@ Hammasi uchun parol: `Demo2026parol`
 | `soliq`, `ekologiya`, `bojxona`, `energetika`, `tahlilchi` | Davlat organlari | — |
 | `admin` | Tizim administratori | ha |
 
-2FA talab qilinadigan demo foydalanuvchilar uchun joriy kod: `npm run totp -- <login>` (faqat ishlab chiqish muhitida). Haqiqiy foydalanuvchi birinchi kirishda autentifikator ilovasini sozlaydi.
+**2FA qanday ishlaydi:** jadvalda 2FA ustuni "ha" bo'lgan rollarga birinchi kirishda ekranda maxfiy kalit chiqadi. Uni telefondagi autentifikator ilovasiga (Google Authenticator, Microsoft Authenticator) qo'lda kiritasiz, ilova bergan 6 xonali kodni yozasiz — shu bilan sozlanadi. Keyingi kirishlarda faqat kod so'raladi.
+
+Tezroq ko'rish uchun 2FA talab qilmaydigan loginlardan foydalaning: `sement`, `metall`, `kimyo`, `tahlilchi`, `soliq`, `importyor`, `bojxona`, `ekologiya`, `energetika`.
+
+Mahalliy ishlab chiqishda, 2FA allaqachon sozlangan bo'lsa, joriy kodni `npm run totp -- <login>` chiqaradi.
 
 ## 1.1. Boshqa odamga ko'rsatish (global havola)
 

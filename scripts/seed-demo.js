@@ -2,7 +2,7 @@
  * Demo ma'lumotlar: npm run seed
  * DIQQAT: data/uzcarbon.db o'chirilib, qaytadan yaratiladi. Barcha korxonalar SHARTLI (haqiqiy emas).
  * Har bir rol uchun demo foydalanuvchi yaratiladi; 2FA talab qilinadigan rollar uchun TOTP yoqiladi —
- * joriy kodni `npm run totp -- <login>` chiqaradi (faqat ishlab chiqish muhitida).
+ * birinchi kirishda foydalanuvchi o'z autentifikator ilovasini ulaydi.
  */
 "use strict";
 const fs = require("fs");
@@ -146,9 +146,10 @@ db.tx(() => {
   ];
   const { ROLES } = require("../src/auth/rbac");
   for (const [login, name, role, op, ver, im] of users) {
-    const mfa = ROLES[role].mfa;
+    // 2FA kaliti oldindan yaratilmaydi: talab qilinadigan rollarga birinchi kirishda
+    // foydalanuvchining o'zi autentifikator ilovasini ulaydi (aks holda kalitni hech kim bilmaydi).
     ins("users", { id: "usr_" + login, login, name, role, operator_id: op || null, verifier_id: ver || null, importer_id: im || null, password_hash: hash,
-      totp_secret: mfa ? C.newTotpSecret() : null, totp_enabled: mfa ? 1 : 0, created_at: T, updated_at: T });
+      totp_secret: null, totp_enabled: 0, created_at: T, updated_at: T });
   }
   sysLog("seed.users", "user", null, { count: users.length });
 
@@ -195,7 +196,7 @@ app.s.db.close();
 
 console.log("Demo ma'lumotlar yaratildi (shartli korxonalar).");
 console.log(`Barcha demo foydalanuvchilar paroli: ${PASSWORD}`);
-console.log("Loginlar (2FA belgisi bo'lganlarga kod: npm run totp -- <login>):");
+console.log("Loginlar ([2FA] belgililariga birinchi kirishda autentifikator ilovasi ulanadi):");
 const { ROLES } = require("../src/auth/rbac");
 const list = [["sement", "exporter_specialist"], ["sement_admin", "exporter_admin"], ["metall", "exporter_specialist"], ["kimyo", "exporter_specialist"], ["kimyo_admin", "exporter_admin"],
   ["verifikator", "verifier"], ["importyor", "importer"], ["metod1", "methodology_admin"], ["metod2", "methodology_admin"], ["imv", "imv"], ["soliq", "tax"], ["ekologiya", "ecology"],
