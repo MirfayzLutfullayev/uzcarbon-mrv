@@ -4,7 +4,7 @@
  */
 "use strict";
 const C = require("../auth/crypto");
-const { ROLES, PERMS, can, mfaRequired } = require("../auth/rbac");
+const { ROLES, PERMS, can, mfaRequired, needsMfa } = require("../auth/rbac");
 const audit = require("../db/audit");
 const { now, newId } = require("../db/db");
 const { HttpError, bad, forbidden, notFound } = require("../http/app");
@@ -44,7 +44,7 @@ function register(app) {
       throw new HttpError(401, "Login yoki parol noto'g'ri.");
     }
     const token = C.randomToken();
-    const needMfa = !!u.totp_enabled || mfaRequired(u.role, config.MFA_ENFORCE);
+    const needMfa = needsMfa(u, config.MFA_ENFORCE);
     const exp = new Date(Date.now() + config.SESSION_TTL_HOURS * 3600e3).toISOString();
     db.run("INSERT INTO sessions (id, user_id, mfa_ok, created_at, expires_at, ip) VALUES (?,?,?,?,?,?)", C.sha256(token), u.id, needMfa ? 0 : 1, now(), exp, ctx.ip);
     setCookie(ctx, token, config.SESSION_TTL_HOURS * 3600);
@@ -60,7 +60,7 @@ function register(app) {
 
   app.get("/api/auth/me", { auth: false }, ctx => {
     if (!ctx.user) return { user: null };
-    const needMfa = !!ctx.user.totp_enabled || mfaRequired(ctx.user.role, config.MFA_ENFORCE);
+    const needMfa = needsMfa(ctx.user, config.MFA_ENFORCE);
     return { user: publicUser(ctx.user, config), mfa: needMfa && !ctx.session.mfa_ok ? (ctx.user.totp_enabled ? "verify" : "setup") : null };
   });
 

@@ -50,6 +50,13 @@ function canProposeKey(user, key) {
   const pre = PROPOSE_PREFIX[user.role];
   return !pre || pre.some(p => key.startsWith(p));
 }
-const mfaRequired = (role, enforce) => enforce && !!ROLES[role]?.mfa;
+const mfaRequired = (role, enforce) => !!enforce && !!ROLES[role]?.mfa;
 
-module.exports = { ROLES, PERMS, can, canProposeKey, mfaRequired };
+/**
+ * Foydalanuvchidan ikki bosqichli tasdiq so'ralsinmi.
+ * MFA_ENFORCE=0 — mutlaq o'chirgich: hisobda 2FA yoqilgan bo'lsa ham kod so'ralmaydi
+ * (namoyish nusxalari uchun; ishlab chiqarishda 1 bo'lishi shart).
+ */
+const needsMfa = (user, enforce) => !!enforce && (!!user.totp_enabled || !!ROLES[user.role]?.mfa);
+
+module.exports = { ROLES, PERMS, can, canProposeKey, mfaRequired, needsMfa };

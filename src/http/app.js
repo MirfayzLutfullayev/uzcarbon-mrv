@@ -6,7 +6,7 @@ const fs = require("fs");
 const path = require("path");
 const http = require("http");
 const { sha256 } = require("../auth/crypto");
-const { can, mfaRequired } = require("../auth/rbac");
+const { can, needsMfa } = require("../auth/rbac");
 const { now } = require("../db/db");
 
 class HttpError extends Error {
@@ -91,7 +91,7 @@ class App {
       const o = route.opts;
       if (o.auth) {
         if (!ctx.user) throw new HttpError(401, "Tizimga kiring.");
-        const needMfa = ctx.user.totp_enabled || mfaRequired(ctx.user.role, this.s.config.MFA_ENFORCE);
+        const needMfa = needsMfa(ctx.user, this.s.config.MFA_ENFORCE);
         if (needMfa && !ctx.session.mfa_ok && !o.mfaPending) throw new HttpError(401, "Ikki bosqichli tasdiq talab qilinadi.", { mfa: true });
         if (o.perm) {
           const perms = Array.isArray(o.perm) ? o.perm : [o.perm];
