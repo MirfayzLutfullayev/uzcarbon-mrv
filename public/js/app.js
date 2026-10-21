@@ -235,13 +235,24 @@ function showMfa() {
   authLayout(`<form id="mfaForm" novalidate>
       <div><h1>Ikki bosqichli tasdiq</h1><p class="note" style="margin:6px 0 0">Autentifikator ilovasidagi 6 xonali kodni kiriting.</p></div>
       <label>Tasdiq kodi<input name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="\\d{6}" required autofocus></label>
-      <span class="note" id="mfaMsg" role="alert"></span>
+      <span class="field-err note" id="mfaMsg" role="alert"></span>
       <button class="btn" type="submit">Tasdiqlash</button>
+      <div class="divider">yoki</div>
+      <button class="btn ghost" type="button" id="mfaBack">Boshqa hisob bilan kirish</button>
+      <p class="note">Kod topilmasa yoki autentifikator ilovasi yo'qolgan bo'lsa, administratorga murojaat qiling — u 2FA ni tiklab beradi.</p>
     </form>`);
+  $("#mfaBack").onclick = backToLogin;
   $("#mfaForm").onsubmit = async e => {
     e.preventDefault();
     try { await post("/api/auth/mfa", { code: e.target.code.value.trim() }); start(); } catch (err) { $("#mfaMsg").textContent = err.message; }
   };
+}
+
+/** Tasdiq ekranidan kirish sahifasiga qaytish: sessiya yopiladi. */
+async function backToLogin() {
+  await post("/api/auth/logout").catch(() => {});
+  S.user = null; S._insts = null;
+  showLogin();
 }
 async function showMfaSetup() {
   let r;
@@ -251,9 +262,12 @@ async function showMfaSetup() {
       <div class="secret" data-raw>${esc(r.secret.replace(/(.{4})/g, "$1 ").trim())}</div>
       <details><summary>otpauth havolasi</summary><p class="mono" style="word-break:break-all">${esc(r.uri)}</p></details>
       <label>Tasdiq kodi<input name="code" inputmode="numeric" maxlength="6" required autofocus></label>
-      <span class="note" id="setupMsg" role="alert"></span>
+      <span class="field-err note" id="setupMsg" role="alert"></span>
       <button class="btn" type="submit">Yoqish va kirish</button>
+      <div class="divider">yoki</div>
+      <button class="btn ghost" type="button" id="setupBack">Boshqa hisob bilan kirish</button>
     </form>`);
+  $("#setupBack").onclick = backToLogin;
   $("#mfaSetup").onsubmit = async e => {
     e.preventDefault();
     try { await post("/api/auth/mfa/enable", { code: e.target.code.value.trim() }); start(); } catch (err) { $("#setupMsg").textContent = err.message; }
