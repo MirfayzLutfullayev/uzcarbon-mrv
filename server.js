@@ -15,7 +15,8 @@ app.server.listen(config.PORT, () => {
   console.log(`UZ-Carbon MRV ishlayapti: http://localhost:${config.PORT}`);
   console.log(`Ma'lumotlar bazasi: ${config.DB_FILE}`);
   if (!users) console.log("Bazada foydalanuvchi yo'q. Demo ma'lumotlar uchun: npm run seed");
-  console.log(`2FA majburiyligi: ${config.MFA_ENFORCE ? "yoqilgan" : "o'chirilgan (MFA_ENFORCE=0)"}; tashqi LLM: ${config.AI_EXTERNAL_ALLOWED && config.ANTHROPIC_API_KEY ? "ruxsat etilgan" : "o'chiq (ma'lumot tashqariga chiqmaydi)"}`);
+  console.log(`2FA majburiyligi: ${config.MFA_ENFORCE ? "YOQILGAN (kirishda kod so'raladi)" : "O'CHIRILGAN (kod so'ralmaydi)"}  [MFA_ENFORCE=${process.env.MFA_ENFORCE ?? "(berilmagan, standart 1)"}]`);
+  console.log(`Tashqi LLM: ${config.AI_EXTERNAL_ALLOWED && config.ANTHROPIC_API_KEY ? "ruxsat etilgan" : "o'chiq (ma'lumot tashqariga chiqmaydi)"}`);
 });
 
 for (const sig of ["SIGINT", "SIGTERM"]) process.on(sig, () => { app.server.close(); app.s.db.close(); process.exit(0); });

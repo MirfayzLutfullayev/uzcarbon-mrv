@@ -32,15 +32,28 @@ function signingKey() {
   return k;
 }
 
+/**
+ * Mantiqiy sozlama: 0, false, no, off, bo'sh — o'chiq; 1, true, yes, on — yoqiq.
+ * Katta-kichik harf va ortiqcha bo'shliqlar hisobga olinmaydi, shunda server
+ * sozlamasidagi kichik farq (masalan "False") kutilmagan xatti-harakatga olib kelmaydi.
+ */
+function flag(name, dflt) {
+  const v = String(env(name, dflt)).trim().toLowerCase();
+  if (["0", "false", "no", "off", ""].includes(v)) return false;
+  if (["1", "true", "yes", "on"].includes(v)) return true;
+  console.warn(`Ogohlantirish: ${name}="${v}" tushunarsiz qiymat, standart (${dflt}) ishlatiladi.`);
+  return String(dflt) === "1";
+}
+
 module.exports = {
   ROOT,
   PORT: Number(env("PORT", 3000)),
   DATA_DIR,
   DB_FILE: env("DB_FILE", path.join(DATA_DIR, "uzcarbon.db")),
-  MFA_ENFORCE: env("MFA_ENFORCE", "1") !== "0",
+  MFA_ENFORCE: flag("MFA_ENFORCE", "1"),
   SESSION_TTL_HOURS: Number(env("SESSION_TTL_HOURS", 8)),
-  SECURE_COOKIES: env("SECURE_COOKIES", "0") === "1",
-  AI_EXTERNAL_ALLOWED: env("AI_EXTERNAL_ALLOWED", "0") === "1",
+  SECURE_COOKIES: flag("SECURE_COOKIES", "0"),
+  AI_EXTERNAL_ALLOWED: flag("AI_EXTERNAL_ALLOWED", "0"),
   ANTHROPIC_API_KEY: env("ANTHROPIC_API_KEY", ""),
   ANTHROPIC_MODEL: env("ANTHROPIC_MODEL", "claude-sonnet-5-5"),
   PUBLIC_URL: env("PUBLIC_URL", ""),
