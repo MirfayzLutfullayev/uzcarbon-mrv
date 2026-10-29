@@ -24,10 +24,15 @@ function setCookie(ctx, token, maxAgeSec) {
   const secure = ctx.s.config.SECURE_COOKIES ? "; Secure" : "";
   ctx.res.setHeader("Set-Cookie", `${COOKIE}=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${maxAgeSec}${secure}`);
 }
-function tooManyAttempts(db, key) {
+/* Bloklangan bo'lsa — qolgan daqiqalar soni, aks holda null.
+   Blok eng qadimgi urinish oynadan chiqqanda ko'tariladi. */
+function lockMinutes(db, key) {
   const since = new Date(Date.now() - WINDOW_MIN * 60000).toISOString();
   db.run("DELETE FROM login_attempts WHERE at < ?", since);
-  return db.get("SELECT COUNT(*) AS c FROM login_attempts WHERE key = ? AND at >= ?", key, since).c >= MAX_ATTEMPTS;
+  const r = db.get("SELECT COUNT(*) AS c, MIN(at) AS first FROM login_attempts WHERE key = ? AND at >= ?", key, since);
+  if (r.c < MAX_ATTEMPTS) return null;
+  const freeAt = new Date(r.first).getTime() + WINDOW_MIN * 60000;
+  return Math.max(1, Math.ceil((freeAt - Date.now()) / 60000));
 }
 
 function register(app) {
@@ -36,7 +41,8 @@ function register(app) {
   app.post("/api/auth/login", { auth: false }, ctx => {
     const b = clean(ctx.body, { login: { t: "str", req: true, max: 80 }, password: { t: "str", req: true, max: 200 } });
     const key = `${ctx.ip}|${b.login.toLowerCase()}`;
-    if (tooManyAttempts(db, key)) throw new HttpError(429, `Juda ko'p urinish. ${WINDOW_MIN} daqiqadan so'ng qayta urinib ko'ring.`);
+    const lock = lockMinutes(db, key);
+    if (lock) throw new HttpError(429, `Xavfsizlik uchun "${b.login}" logini vaqtincha bloklandi (${MAX_ATTEMPTS} ta xato urinish). ${lock} daqiqadan so'ng qayta urinib ko'ring.`);
     const u = db.get("SELECT * FROM users WHERE lower(login) = lower(?) AND disabled = 0", b.login);
     if (!u || !C.verifyPassword(b.password, u.password_hash)) {
       db.run("INSERT INTO login_attempts (key, at) VALUES (?, ?)", key, now());
@@ -70,7 +76,8 @@ function register(app) {
     const u = ctx.user;
     if (!u.totp_enabled) throw bad("2FA hali sozlanmagan.");
     const key = `mfa|${u.id}`;
-    if (tooManyAttempts(db, key)) throw new HttpError(429, "Juda ko'p noto'g'ri kod. Keyinroq urinib ko'ring.");
+    const lock = lockMinutes(db, key);
+    if (lock) throw new HttpError(429, `Juda ko'p noto'g'ri kod. ${lock} daqiqadan so'ng qayta urinib ko'ring.`);
     const step = C.verifyTotp(u.totp_secret, b.code, u.totp_last_step);
     if (step == null) { db.run("INSERT INTO login_attempts (key, at) VALUES (?, ?)", key, now()); throw new HttpError(401, "Kod noto'g'ri yoki eskirgan."); }
     db.run("UPDATE users SET totp_last_step = ? WHERE id = ?", step, u.id);

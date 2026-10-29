@@ -200,7 +200,7 @@ function showLogin(msg = "") {
       <div><h1>Tizimga kirish</h1><p class="note" style="margin:6px 0 0">Eksportyorlar, verifikatorlar va davlat organlari xodimlari uchun.</p></div>
       ${msg ? `<div class="banner" role="alert">${esc(msg)}</div>` : ""}
       <label>Login<input name="login" autocomplete="username" required autofocus></label>
-      <label>Parol<input name="password" type="password" autocomplete="current-password" required></label>
+      <label>Parol<span class="pw"><input name="password" type="password" autocomplete="current-password" required><button class="pw-toggle" type="button" id="pwToggle" aria-label="Parolni ko'rsatish">ko'rsatish</button></span></label>
       <span class="field-err note" id="loginMsg" role="alert"></span>
       <button class="btn" type="submit">Kirish</button>
       <div class="divider">yoki</div>
@@ -208,6 +208,13 @@ function showLogin(msg = "") {
       <p class="note">OneID va elektron raqamli imzo (ERI) orqali kirish integratsiya ulangach qo'shiladi.</p>
     </form>`);
   $("#pubLink").onclick = async e => { e.preventDefault(); await showPublic(); };
+  $("#pwToggle").onclick = () => {
+    const b = $("#pwToggle"), i = $("#loginForm").password, show = i.type === "password";
+    i.type = show ? "text" : "password";
+    b.textContent = show ? "yashirish" : "ko'rsatish";
+    b.setAttribute("aria-label", show ? "Parolni yashirish" : "Parolni ko'rsatish");
+    i.focus();
+  };
   $("#loginForm").onsubmit = async e => {
     e.preventDefault();
     const f = e.target, m = $("#loginMsg");
