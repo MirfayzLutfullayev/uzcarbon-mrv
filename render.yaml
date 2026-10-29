@@ -1,0 +1,32 @@
+# Render.com uchun tayyor sozlama (Blueprint).
+# Foydalanish: Render -> New -> Blueprint -> shu repozitoriyni tanlang.
+#
+# DIQQAT: bu NAMOYISH sozlamasi. MFA_ENFORCE=0 - kirishda tasdiq kodi so'ralmaydi.
+# Haqiqiy foydalanishda uni 1 ga o'zgartiring (ilovaning o'z standarti ham 1).
+#
+# Bepul tarifda doimiy disk yo'q: servis uyquga ketganda yoki qayta ishga tushganda
+# baza tozalanadi va demo ma'lumotlar avtomatik qayta yuklanadi. Ma'lumot saqlanishi
+# kerak bo'lsa, pullik tarifga o'ting va quyidagi "disk" qismini yoqing.
+
+services:
+  - type: web
+    name: uzcarbon-mrv
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/system/health
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      - key: SECURE_COOKIES
+        value: "1"
+      - key: MFA_ENFORCE
+        value: "0"
+    # Doimiy disk (pullik tarif). Yoqsangiz, DATA_DIR ni ham qo'shing:
+    #   - key: DATA_DIR
+    #     value: /data
+    # disk:
+    #   name: uzcarbon-data
+    #   mountPath: /data
+    #   sizeGB: 1

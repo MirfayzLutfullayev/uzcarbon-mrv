@@ -56,21 +56,59 @@ Ko'rib chiquvchiga yuboriladigan loginlar (parol `Demo2026parol`): `sement` — 
 
 **Diqqat:** havolani bilgan har kim kirish sahifasini ko'radi, shuning uchun uni faqat kerakli odamga yuboring va ko'rsatib bo'lgach oynani yoping. Bazada faqat shartli (demo) korxonalar ma'lumoti bor.
 
-## 1.2. Serverga joylashtirish (Railway)
+## 1.2. Serverga joylashtirish
 
-1. Railway'da **New Project → Deploy from GitHub repo** orqali shu repozitoriyni tanlang.
-2. **Variables** bo'limiga qo'shing:
-   - `DATA_DIR` = `/data`
-   - `SECURE_COOKIES` = `1`
-   - `MFA_ENFORCE` = `1`
-3. **Settings → Volumes → Add Volume**, ulanish nuqtasi (mount path): `/data`.
-4. Deploy tugagach havolani oching.
+Ilova tashqi kutubxonalarga bog'liq emas va bazani o'zi yaratadi, shuning uchun deyarli har qanday Node.js yoki Docker hostingida ishlaydi. Umumiy qoidalar:
 
-`npm start` birinchi ishga tushganda bazani tekshiradi: foydalanuvchilar bo'lmasa, demo ma'lumotlarni avtomatik yuklaydi (`scripts/ensure-seed.js`). Keyingi qayta ishga tushishlarda mavjud ma'lumotlarga tegmaydi.
+- `PORT` ni host o'zi beradi — qo'lda yozish shart emas.
+- Tekshiruv (health check) manzili: `/api/system/health`.
+- HTTPS orqasida `SECURE_COOKIES=1`.
+- `npm start` birinchi ishga tushganda bazani tekshiradi: foydalanuvchilar bo'lmasa, demo ma'lumotlarni avtomatik yuklaydi (`scripts/ensure-seed.js`). Keyingi qayta ishga tushishlarda mavjud ma'lumotlarga tegmaydi.
+- **Doimiy disk (volume) shart.** Usiz host har qayta joylashtirishda fayl tizimini tozalaydi va baza — kiritilgan barcha ma'lumotlar bilan — yo'qoladi. Disk ulangach `DATA_DIR` ni shu papkaga qaratish kerak.
 
-**Volume shart:** usiz Railway har qayta joylashtirishda fayl tizimini tozalaydi va baza (kiritilgan ma'lumotlar bilan birga) yo'qoladi.
+### Variantlar
 
-`PORT` o'zgaruvchisini Railway o'zi beradi — qo'lda yozish shart emas. Tekshiruv manzili: `/api/system/health`.
+| Variant | Bepul | Doimiy disk | Izoh |
+|---|---|---|---|
+| **Render.com** | bor | pullik tarifda | `render.yaml` tayyor. Eng tez yo'l. Bepul tarifda 15 daqiqa harakatsizlikdan keyin uyquga ketadi va baza tozalanadi (demo avtomatik qayta yuklanadi). |
+| **Fly.io** | sinov krediti | bor (`fly volumes`) | `Dockerfile` tayyor. Serverni Yevropaga (`fra`) yoki yaqinroq mintaqaga joylash mumkin. |
+| **Koyeb / Northflank** | bor | tarifga qarab | `Dockerfile` tayyor, GitHub'dan avtomatik yig'adi. |
+| **Oracle Cloud Always Free** | doimiy bepul | bor (to'liq disk) | 4 yadroli ARM virtual server. Sozlash qo'lda: Node 24 + `git clone` + `systemd` + Caddy/Nginx (HTTPS). Eng barqaror bepul variant. |
+| **Oddiy VPS** (Hetzner, Contabo, mahalliy provayder) | yo'q (~5$/oy) | bor | To'liq nazorat. TZ-2 talabiga ko'ra haqiqiy ekspluatatsiyada ma'lumotlar O'zbekiston hududidagi markazda saqlanishi kerak — demak oxir-oqibat shu variant. |
+| **Mahalliy kompyuter + tunnel** | bepul | bor | `scripts/demo-link.ps1` (yuqoridagi 1.1-bo'lim) — faqat namoyish uchun, kompyuter o'chsa havola ham o'chadi. |
+
+### Render (eng tez yo'l)
+
+1. Render'da **New → Blueprint**, shu repozitoriyni tanlang — `render.yaml` o'qiladi.
+2. Deploy tugagach havolani oching.
+3. Ma'lumot saqlanishi kerak bo'lsa: pullik tarifga o'tib, `render.yaml` dagi `disk` qismini va `DATA_DIR=/data` ni yoqing.
+
+`render.yaml` da `MFA_ENFORCE=0` — namoyish uchun, tasdiq kodi so'ralmaydi. Haqiqiy foydalanishda `1` qilib qo'ying.
+
+### Docker (Fly.io, Koyeb, o'z serveringiz)
+
+```bash
+docker build -t uzcarbon .
+docker run -p 3000:3000 -v uzcarbon-data:/data -e DATA_DIR=/data -e SECURE_COOKIES=1 uzcarbon
+```
+
+Fly.io uchun:
+
+```bash
+fly launch --no-deploy          # Dockerfile aniqlanadi
+fly volumes create uzcarbon_data --size 1
+# fly.toml ichida [mounts] source="uzcarbon_data" destination="/data"
+fly secrets set DATA_DIR=/data SECURE_COOKIES=1
+fly deploy
+```
+
+### Railway
+
+1. **New Project → Deploy from GitHub repo**.
+2. **Variables**: `DATA_DIR=/data`, `SECURE_COOKIES=1`, `MFA_ENFORCE=1`.
+3. **Settings → Volumes → Add Volume**, mount path: `/data`.
+
+Agar Railway "Could not load branches" yoki "Auto deploy unavailable" deb yozsa — GitHub App'ga repozitoriyga ruxsat berilmagan: GitHub → Settings → Applications → Railway → Configure.
 
 ## 2. Buyruqlar
 
