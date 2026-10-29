@@ -13,6 +13,8 @@ services:
     name: uzcarbon-mrv
     runtime: node
     plan: free
+    # Frankfurt O'zbekistonga Render mintaqalari ichida eng yaqini
+    region: frankfurt
     buildCommand: npm install
     startCommand: npm start
     healthCheckPath: /api/system/health
